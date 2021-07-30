@@ -1,5 +1,7 @@
 use std::ops::{Add, Sub, Mul, Div};
 
+use super::frac::Frac;
+
 
 // zero ------------------------------------------------------------------------
 
@@ -18,6 +20,9 @@ macro_rules! int_zero_impl {
 
 int_zero_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 
+impl Zero for Frac {
+    const ZERO: Frac = Frac::zero();
+}
 
 // one -------------------------------------------------------------------------
 
@@ -36,11 +41,17 @@ macro_rules! one_impl {
 
 one_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 
+impl One for Frac {
+    const ONE: Frac = Frac::one();
+}
 
 // field -----------------------------------------------------------------------
 
 pub trait Field:
     Sized
+    + Copy
+    + std::fmt::Display
+    + PartialEq
     + Add<Self, Output = Self>
     + Sub<Self, Output = Self>
     + Zero
@@ -48,17 +59,18 @@ pub trait Field:
     + Div<Self, Output = Self>
     + One
 {
-
+    fn powi32(&self, p: i32) -> Self;
 }
 
 macro_rules! field_impl {
     ($($t:ty)*) => ($(
         impl Field for $t {
-            
+            fn powi32(&self, p: i32) -> Self {
+                self.powi(p)
+            }
         }
     )*)
 }
 
-field_impl! { f32 f64 }
+field_impl! { f32 f64 Frac }
 
-// pow -------------------------------------------------------------------------
