@@ -96,7 +96,7 @@ impl<F: Field> Mat<F> {
 	pub fn rows(&self) -> usize { self.rows }
 	pub fn cols(&self) -> usize { self.cols	}
 
-	// transpose to be column vector
+	/// transposed to be column vector
 	pub fn get_row(&self, r:usize) -> Mat<F> {
 		Mat {
 			entries: (0..self.cols).map(|c| self.get(r,c).clone()).collect(),
@@ -105,12 +105,20 @@ impl<F: Field> Mat<F> {
 		}
 	}
 
+	pub fn get_row_iter(&self, r:usize) -> impl Iterator<Item=&F> {
+		self.entries[r*self.cols..(r+1)*self.cols].iter()
+	}
+
 	pub fn get_col(&self, c:usize) -> Mat<F> {
 		Mat {
 			entries: (0..self.rows).map(|r| self.get(r,c).clone()).collect(),
 			rows: self.rows,
 			cols: 1
 		}
+	}
+
+	pub fn get_col_iter(&self, c:usize) -> impl Iterator<Item=&F> {
+		(0..self.rows).map(move |r| self.get(r,c))
 	}
 }
 
@@ -158,13 +166,14 @@ impl<F: Field> Mul for &Mat<F> {
 		if self.cols != other.rows {
 			panic!("tried to multiply matrices with incompatible dimensions.")
 		}
-		return Mat::new(self.rows, other.cols,
+		Mat::new(self.rows, other.cols,
 			get_box_iter(self.rows, other.cols)
-				.map( |(r,c)| (self.get_row(r), other.get_col(c)) )
-				.map( |(m1,m2)| m1.entries.into_iter().zip(m2.entries) )
-				.map( |iter| iter.fold(F::ZERO, |accum : F, (x,y) : (F,F)| accum + x*y) )
-				.collect()
-		);
+				.map(|(r,c)|
+					self.get_row_iter(r).zip(other.get_col_iter(c))
+						.fold(F::ZERO,
+							|accum: F, (&x,&y): (&F,&F)| accum + x*y) 
+				).collect()
+		)
 	}
 }
 
