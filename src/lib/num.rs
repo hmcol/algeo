@@ -84,26 +84,26 @@ field_impl! { f32 f64 Frac }
 /// decomposition (or just Gaussian elimination in general), it is always best
 /// to divide by large floats, since this will lead to the least rounding/
 /// float point problems.
-pub trait NumStabilityNormed {
-    fn num_stability_norm(&self) -> f64;
+pub trait StabilityNorm {
+    fn stability_norm(&self) -> f64;
 }
 
-macro_rules! num_stability_norm_impl {
+macro_rules! stability_norm_impl {
     ($($t:ty)*) => ($(
-        impl NumStabilityNormed for $t {
-            fn num_stability_norm(&self) -> f64 {
-                *self as f64
+        impl StabilityNorm for $t {
+            fn stability_norm(&self) -> f64 {
+                (*self as f64).abs()
             }
         }
     )*)
 }
 
-num_stability_norm_impl! { f32 f64 }
+stability_norm_impl! { f32 f64 }
 
 /// the max stability norm of a vec of fractions will be the one with the
 /// one with the minimum sum of numerator+denominator.
-impl NumStabilityNormed for Frac {
-    fn num_stability_norm(&self) -> f64 {
-        (-self.numer-self.denom) as f64
+impl StabilityNorm for Frac {
+    fn stability_norm(&self) -> f64 {
+        (-self.numer.abs()-self.denom.abs()) as f64
     }
 }

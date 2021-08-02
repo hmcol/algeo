@@ -1,11 +1,11 @@
 
 
-use super::super::num::{Field, NumStabilityNormed};
+use super::super::num::{Field, StabilityNorm};
 use super::mat::Mat;
 use super::util::get_max_index;
 use std::collections::HashSet;
 
-impl<F: Field+NumStabilityNormed> Mat<F> {
+impl<F: Field+StabilityNorm> Mat<F> {
 
 	pub fn row_echelon(&self) -> (Mat<F>, Mat<F>) {
 		let mut temp = self.clone();
@@ -20,7 +20,7 @@ impl<F: Field+NumStabilityNormed> Mat<F> {
 				// FIRST: put best row at the top
 
 				// get index of most stable (usually largest) entry in column
-				let norms = current_col.entries()[c..].iter().map(|x| x.num_stability_norm());
+				let norms = current_col.entries()[c..].iter().map(|x| x.stability_norm());
 				let stable_index = get_max_index(norms)+c;
 
 				let temp_perm = Mat::permutation(n, c, stable_index);
