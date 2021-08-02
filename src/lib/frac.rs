@@ -35,7 +35,7 @@ impl Frac {
     pub fn new(numer: I, denom: I) -> Self {
         if denom == 0 { panic!("denominator cannot be zero") };
 
-        let gcd = gcd_euc(numer, denom);
+        let gcd = gcd(numer, denom);
 
         Frac::new_unchecked(
             numer * denom.signum() / gcd ,
@@ -102,31 +102,8 @@ impl std::fmt::Display for Frac {
     }
 }
 
-/// computes greatest common divisor using binary algorithm i found on wikipedia
-/// 
-/// idk seems pretty bad
-fn gcd_bin(a: u64, b: u64) -> u64 {
-    let mut a = a;
-    let mut b = b;
-
-    let az = a.trailing_zeros();
-    let bz = b.trailing_zeros();
-
-    a >>= az;
-    b >>= bz;
-
-    let c = std::cmp::min(az, bz);
-
-    loop {
-        if a > b { std::mem::swap(&mut a, &mut b) };
-        b -= a;
-        if b == 0 { break a << c };
-        b >>= b.trailing_zeros();
-    }
-}
-
 /// computes greatest common divisor using Euclidean algorithm
-fn gcd_euc(a: i64, b: i64) -> i64 {
+fn gcd(a: i64, b: i64) -> i64 {
     let mut a = a;
     let mut b = b;
     let mut t: i64;
@@ -139,4 +116,19 @@ fn gcd_euc(a: i64, b: i64) -> i64 {
 
     // return 
     a.abs()
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::gcd;
+
+    #[test]
+    fn test_gcd() {
+        assert_eq!(gcd(-10,-15), 5);
+        assert_eq!(gcd(-5,-10), 5);
+        assert_eq!(gcd(-0,-1), 1);
+        assert_eq!(gcd(-5,-6), 1);
+        assert_eq!(gcd(-80,-20), 20);
+    }
 }
