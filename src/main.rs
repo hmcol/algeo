@@ -1,6 +1,8 @@
 
 mod lib;
 use lib::poly::*;
+use lib::linalg::mat::Mat;
+use lib::linalg::row_echelon::*;
 
 
 fn main() {
@@ -21,6 +23,19 @@ fn main() {
 
     println!("{}", p * q);
 
+
+
+    let mat : Mat<f32> = Mat::new(3,4,
+        vec![
+			0.0, 1.0, 2.0,  3.0,
+			4.0, 5.0, 6.0,  7.0,
+			8.0, 9.0, 10.0, 11.0
+		]
+    );
+	println!("{:?}", mat);
+    println!("{:?}", mat.row_echelon().0);
+	println!("{:?}", mat.reduced_row_echelon().0);
+	println!("{:?}", mat.compute_kernel());
 
 }
 

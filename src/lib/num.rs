@@ -50,6 +50,7 @@ impl One for Frac {
 pub trait Field:
     Sized
     + Copy
+    + std::fmt::Debug
     + std::fmt::Display
     + PartialEq
     + Add<Self, Output = Self>
@@ -74,3 +75,35 @@ macro_rules! field_impl {
 
 field_impl! { f32 f64 Frac }
 
+
+
+// Numerical Stability Norm ----------------------------------------------------
+
+/// Assigns a value in f64 that indicates how "big" a number is. More precisely,
+/// it is used to determine what number is best to divide by. For lu
+/// decomposition (or just Gaussian elimination in general), it is always best
+/// to divide by large floats, since this will lead to the least rounding/
+/// float point problems.
+pub trait NumStabilityNormed {
+    fn num_stability_norm(&self) -> f64;
+}
+
+macro_rules! num_stability_norm_impl {
+    ($($t:ty)*) => ($(
+        impl NumStabilityNormed for $t {
+            fn num_stability_norm(&self) -> f64 {
+                *self as f64
+            }
+        }
+    )*)
+}
+
+num_stability_norm_impl! { f32 f64 }
+
+/// the max stability norm of a vec of fractions will be the one with the
+/// one with the minimum sum of numerator+denominator.
+impl NumStabilityNormed for Frac {
+    fn num_stability_norm(&self) -> f64 {
+        (-self.numer-self.denom) as f64
+    }
+}
