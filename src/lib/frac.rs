@@ -122,6 +122,7 @@ fn gcd(a: i64, b: i64) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::gcd;
+    use super::Frac;
 
     #[test]
     fn test_gcd() {
@@ -130,5 +131,16 @@ mod tests {
         assert_eq!(gcd(-0,-1), 1);
         assert_eq!(gcd(-5,-6), 1);
         assert_eq!(gcd(-80,-20), 20);
+    }
+
+    #[test]
+    fn test_frac() {
+        assert_eq!(Frac::new(0,1), Frac{ numer: 0, denom: 1});
+        assert_eq!(Frac::new(1,1), Frac{ numer: 1, denom: 1});
+        assert_eq!(Frac::new(2,2), Frac{ numer: 1, denom: 1});
+        assert_eq!(Frac::new(1,2)+Frac::new(1,3), Frac{ numer: 5, denom: 6});
+        assert_eq!(Frac::new(1,2)-Frac::new(1,3), Frac{ numer: 1, denom: 6});
+        assert_eq!(Frac::new(1,2)*Frac::new(1,3), Frac{ numer: 1, denom: 6});
+        assert_eq!(Frac::new(1,2)/Frac::new(1,3), Frac{ numer: 3, denom: 2});
     }
 }
