@@ -1,6 +1,6 @@
 use super::super::num::Field;
 use super::util::get_box_iter;
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Index, IndexMut};
 use std::fmt;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -77,11 +77,11 @@ impl<F: Field> Mat<F> {
 
 	pub fn transpose(&self) -> Mat<F> {
 		Mat::new(self.cols, self.rows,
-			get_box_iter(self.cols, self.rows).map(|(c,r)| self.get(r,c).clone()).collect()
+			get_box_iter(self.cols, self.rows).map(|(c,r)| self.get_unchecked(r,c).clone()).collect()
 		)
 	}
 
-	pub fn get(&self, r: usize, c: usize) -> &F {
+	pub fn get_unchecked(&self, r: usize, c: usize) -> &F {
 		&self.entries[r*self.cols+c]
 	}
 
@@ -89,7 +89,7 @@ impl<F: Field> Mat<F> {
 		&self.entries
 	}
 
-	pub fn get_mut<'a>(&'a mut self, r: usize, c: usize) -> &'a mut F {
+	pub fn get_mut_unchecked<'a>(&'a mut self, r: usize, c: usize) -> &'a mut F {
 		&mut self.entries[r*self.cols+c]
 	}
 
@@ -114,7 +114,7 @@ impl<F: Field> Mat<F> {
 	}
 
 	pub fn get_col_iter(&self, c: usize) -> impl Iterator<Item=&F> {
-		(0..self.rows).map(move |r| self.get(r,c))
+		(0..self.rows).map(move |r| self.get_unchecked(r,c))
 	}
 
 	pub fn get_col_iter_mut(& mut self, c: usize) -> impl Iterator<Item=&mut F> {
@@ -130,6 +130,20 @@ impl<F: Field> Mat<F> {
 			rows: self.rows,
 			cols: 1
 		}
+	}
+}
+
+impl<F: Field> Index<(usize,usize)> for Mat<F> {
+	type Output = F;
+
+	fn index(&self, (r,c) : (usize, usize)) -> &F {
+		self.get_unchecked(r, c)
+	}
+}
+
+impl<F: Field> IndexMut<(usize,usize)> for Mat<F> {
+	fn index_mut(&mut self, (r,c) : (usize, usize)) -> &mut F {
+		self.get_mut_unchecked(r, c)
 	}
 }
 

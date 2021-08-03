@@ -24,12 +24,12 @@ impl<F: Field+StabilityNorm> Mat<F> {
 				let stable_index = get_max_index(norms)+c;
 
 				let temp_perm = Mat::permutation(n, c, stable_index);
-				temp = &Mat::scale(n, c, F::ONE/ *current_col.get(stable_index,0)) * &(&temp_perm * &temp);
+				temp = &Mat::scale(n, c, F::ONE/ *current_col.get_unchecked(stable_index,0)) * &(&temp_perm * &temp);
 				permutation = &temp_perm * &permutation;
 
 				// SECOND: do replacement
 				for r in (c+1)..temp.rows() {
-					temp = &Mat::replacement(n, c, r, F::ZERO - *temp.get(r,c)) * &temp;
+					temp = &Mat::replacement(n, c, r, F::ZERO - *temp.get_unchecked(r,c)) * &temp;
 				}
 			}
 		}
@@ -49,7 +49,7 @@ impl<F: Field+StabilityNorm> Mat<F> {
 			let c_option = temp.index_of_first_nonzero_entry(r);
 			if let Some(c) = c_option {
 				for r2 in 0..r {
-					temp = &Mat::replacement(n, r, r2, F::ZERO-*temp.get(r2,c)) * &temp;
+					temp = &Mat::replacement(n, r, r2, F::ZERO-*temp.get_unchecked(r2,c)) * &temp;
 				}
 			}
 		}
@@ -71,7 +71,7 @@ impl<F: Field+StabilityNorm> Mat<F> {
 			for r in 0..rref.rows() {
 				if let Some(c2) = rref.index_of_first_nonzero_entry(r) {
 					if c2 < c {
-						*vector.get_mut(c2, 0) = F::ZERO-*rref.get(r,c);
+						*vector.get_mut_unchecked(c2, 0) = F::ZERO-*rref.get_unchecked(r,c);
 					}
 				}
 			}
