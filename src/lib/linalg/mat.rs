@@ -58,8 +58,10 @@ impl<F: Field> Mat<F> {
 	pub fn permutation(rows: usize, source: usize, target: usize) -> Mat<F> {
 		Mat::new(rows, rows,
 			get_box_iter(rows, rows).map(|(r,c)|
-				if (r==source && c==target) || (r==target && c==source) { F::ONE }
-				else if r==c && r != source && c != target { F::ONE }
+				if (r,c)==(source,target) || (c,r)==(source,target) ||
+					(r==c && r!=source && c!= target) {
+					F::ONE
+				}
 				else { F::ZERO }
 			).collect()
 		)
@@ -106,11 +108,7 @@ impl<F: Field> Mat<F> {
 
 	/// transposed to be column vector
 	pub fn get_row(&self, r: usize) -> Mat<F> {
-		Mat {
-			entries: self.get_row_iter(r).map(|x| x.clone()).collect(),
-			rows: self.cols,
-			cols: 1
-		}
+		Mat::from(self.get_row_iter(r).cloned())
 	}
 
 	pub fn get_col_iter(&self, c: usize) -> impl Iterator<Item=&F> {
@@ -125,9 +123,17 @@ impl<F: Field> Mat<F> {
 	}
 
 	pub fn get_col(&self, c:usize) -> Mat<F> {
+		Mat::from(self.get_col_iter(c).cloned())
+	}
+}
+
+impl<F: Field, I: Iterator<Item=F>> From<I> for Mat<F> {
+	fn from(iter: I) -> Self {
+		let entries: Vec<F>= iter.collect();
+		let rows = entries.len();
 		Mat {
-			entries: self.get_col_iter(c).map(|x| x.clone()).collect(),
-			rows: self.rows,
+			entries,
+			rows,
 			cols: 1
 		}
 	}
