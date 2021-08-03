@@ -19,7 +19,7 @@ pub fn get_max_index(slice: impl Iterator<Item=f64>) -> usize {
 
 	slice
 		.enumerate()
-        .max_by(|(x,n), (y,m)| x.partial_cmp(&y).unwrap())
+        .max_by(|(x,_n), (y,_m)| x.partial_cmp(&y).unwrap())
         .unwrap()
 		.0
 }

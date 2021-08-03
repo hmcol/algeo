@@ -79,7 +79,7 @@ impl<F: Field> Mat<F> {
 
 	pub fn transpose(&self) -> Mat<F> {
 		Mat::new(self.cols, self.rows,
-			get_box_iter(self.cols, self.rows).map(|(c,r)| self.get_unchecked(r,c).clone()).collect()
+			get_box_iter(self.cols, self.rows).map(|(c,r)| self.get_unchecked(r,c)).cloned().collect()
 		)
 	}
 
@@ -91,7 +91,7 @@ impl<F: Field> Mat<F> {
 		&self.entries
 	}
 
-	pub fn get_mut_unchecked<'a>(&'a mut self, r: usize, c: usize) -> &'a mut F {
+	pub fn get_mut_unchecked(&mut self, r: usize, c: usize) -> &mut F {
 		&mut self.entries[r*self.cols+c]
 	}
 
@@ -192,7 +192,7 @@ impl<F: Field> Mul<F> for &Mat<F> {
 
 impl<F: Field> Mul for &Mat<F> {
 	type Output = Mat<F>;
-
+	
 	fn mul(self, other: Self) -> Mat<F>{
 		if self.cols != other.rows {
 			panic!("tried to multiply matrices with incompatible dimensions.")
