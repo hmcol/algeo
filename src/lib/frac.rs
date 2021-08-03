@@ -45,7 +45,7 @@ impl Frac {
 
     /// for compatibility with Field trait
     pub fn powi(&self, n: i32) -> Self {
-        Frac::new(
+        Frac::new_unchecked(
             self.numer.pow(n as u32),
             self.denom.pow(n as u32)
         )
