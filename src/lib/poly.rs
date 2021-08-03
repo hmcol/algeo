@@ -1,72 +1,10 @@
-use std::ops::{Add, AddAssign, Mul, MulAssign, Index};
+use std::ops::{
+    Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign, Index
+};
 use std::cmp::Ordering;
 use std::fmt::{self, Write};
 
 use super::num::*;
-
-
-// macros stolen from rust source
-
-// implements binary operators "&T op U", "T op &U", "&T op &U"
-// based on "T op U" where T and U are expected to be `Copy`able
-macro_rules! forward_ref_binop {
-    (impl<N> $imp:ident, $method:ident for $t:ty, $u:ty) => {
-        impl<'a, const N: usize> $imp<$u> for &'a $t {
-            type Output = <$t as $imp<$u>>::Output;
-
-            #[inline]
-            fn $method(self, other: $u) -> <$t as $imp<$u>>::Output {
-                $imp::$method(*self, other)
-            }
-        }
-
-        impl<const N: usize> $imp<&$u> for $t {
-            type Output = <$t as $imp<$u>>::Output;
-
-            #[inline]
-            fn $method(self, other: &$u) -> <$t as $imp<$u>>::Output {
-                $imp::$method(self, *other)
-            }
-        }
-
-        impl<const N: usize> $imp<&$u> for &$t {
-            type Output = <$t as $imp<$u>>::Output;
-
-            #[inline]
-            fn $method(self, other: &$u) -> <$t as $imp<$u>>::Output {
-                $imp::$method(*self, *other)
-            }
-        }
-    };
-    (impl<F, N> $imp:ident, $method:ident for $t:ty, $u:ty) => {
-        impl<'a, F: Field, const N: usize> $imp<$u> for &'a $t {
-            type Output = <$t as $imp<$u>>::Output;
-
-            #[inline]
-            fn $method(self, other: $u) -> <$t as $imp<$u>>::Output {
-                $imp::$method(*self, other)
-            }
-        }
-
-        impl<F: Field, const N: usize> $imp<&$u> for $t {
-            type Output = <$t as $imp<$u>>::Output;
-
-            #[inline]
-            fn $method(self, other: &$u) -> <$t as $imp<$u>>::Output {
-                $imp::$method(self, *other)
-            }
-        }
-
-        impl<F: Field, const N: usize> $imp<&$u> for &$t {
-            type Output = <$t as $imp<$u>>::Output;
-
-            #[inline]
-            fn $method(self, other: &$u) -> <$t as $imp<$u>>::Output {
-                $imp::$method(*self, *other)
-            }
-        }
-    }
-}
 
 
 
@@ -117,24 +55,47 @@ impl<const N: usize> MDeg<N> {
     }
 }
 
-impl<const N: usize> Add for MDeg<N> {
-    type Output = Self;
-
-    fn add(self, other: Self) -> Self::Output {
-        let mut sum_arr = [0; N];
-
-        for (v_ref, (di, dj)) in sum_arr.iter_mut()
-            .zip(self.degs().zip(other.degs()))
-        {
-            *v_ref = di + dj
+/// implements the given operation & operation-assignment traits for
+/// multidegrees componentwise
+/// 
+/// for example if the operation in question is star, `⋆`, then
+/// `MDeg([a, b, c]) ⋆ MDeg([i, j, k])` gives `MDeg([a ⋆ i, b ⋆ j, c ⋆ k])
+/// 
+/// in particular, the operation-assignment trait is implemented first, with
+/// the operation trait piggy-backing off it
+macro_rules! impl_op_for_mdeg_componentwise {
+    (
+        $trait:ty,
+        $func:ident,
+        $ass_trait:ty,
+        $ass_func:ident
+    ) => {
+        impl<const N: usize> $ass_trait for MDeg<N> {
+            #[inline]
+            fn $ass_func(&mut self, other: Self) {
+                for (a_ref, b) in self.degs_mut().zip(other.degs()) {
+                    a_ref.$ass_func(b);
+                }
+            }
         }
 
-        // return
-        MDeg(sum_arr)
-    }
+        impl<const N: usize> $trait for MDeg<N> {
+            type Output = Self;
+            
+            #[inline]
+            fn $func(mut self, other: Self) -> Self::Output {
+                self.$ass_func(other);
+        
+                // return
+                self
+            }
+        }
+    };
 }
 
-forward_ref_binop! { impl<N> Add, add for MDeg<N>, MDeg<N> }
+impl_op_for_mdeg_componentwise! { Add, add, AddAssign, add_assign }
+impl_op_for_mdeg_componentwise! { Sub, sub, SubAssign, sub_assign }
+
 
 impl<const N: usize> Index<usize> for MDeg<N> {
     type Output = P;
@@ -276,25 +237,43 @@ impl<F: Field, const N: usize> Term<F, N> {
     }
 }
 
-impl<F: Field, const N: usize> Mul for Term<F, N> {
-    type Output = Self;
+/// implements the given operation & operation-assignment traits for
+/// terms, with the coefficients being performed on by the very same operation
+/// and the multidegrees being performed on by some corresponding operation
+/// 
+/// in particular, the operation-assignment trait is implemented first, with
+/// the operation trait piggy-backing off it
+macro_rules! impl_op_for_term {
+    (
+        $trait:ty,
+        $func:ident,
+        $ass_trait:ty,
+        $ass_func:ident,
+        $mdeg_ass_func:ident
+    ) => {
+        impl<F: Field, const N: usize> $ass_trait for Term<F, N> {
+            fn $ass_func(&mut self, other: Self) {
+                self.coef.$ass_func(other.coef);
+                self.mdeg.$mdeg_ass_func(other.mdeg);
+            }
+        }
 
-    fn mul(self, other: Self) -> Self::Output {
-        Term::from_coef_mdeg(
-            self.coef * other.coef,
-            self.mdeg + other.mdeg,
-        )
-    }
+        impl<F: Field, const N: usize> $trait for Term<F, N> {
+            type Output = Self;
+        
+            fn $func(mut self, other: Self) -> Self::Output {
+                self.$ass_func(other);
+        
+                // return
+                self
+            }
+        }
+    };
 }
 
-forward_ref_binop! { impl<F, N> Mul, mul for Term<F, N>, Term<F, N> }
+impl_op_for_term! { Mul, mul, MulAssign, mul_assign, add_assign }
+impl_op_for_term! { Div, div, DivAssign, div_assign, sub_assign }
 
-impl<F: Field, const N: usize> MulAssign for Term<F, N> {
-    fn mul_assign(&mut self, other: Self) {
-        (*self).coef = self.coef * other.coef; // impl MulAssign for F
-        (*self).mdeg = self.mdeg + other.mdeg; // impl AddAssign for MDeg
-    }
-}
 
 impl<F: Field, const N: usize> fmt::Display for Term<F, N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -368,20 +347,32 @@ impl<F: Field, const N: usize> Polynomial<F, N> {
 
 
 impl<F: Field, const N: usize> AddAssign<Term<F,N>> for Polynomial<F, N> {
-    fn add_assign(&mut self, other: Term<F,N>) {
-        if let Some(term_ref) = self.terms.iter_mut()
-            .find(|t| t.mdeg == other.mdeg)
+    fn add_assign(&mut self, rhs: Term<F,N>) {
+        if let Some(term_ref) = self.terms
+            .iter_mut()
+            .find(|t| t.mdeg == rhs.mdeg)
         {
-            (*term_ref).coef = term_ref.coef + other.coef;
+            term_ref.coef += rhs.coef;  // consider adding checks for zero coef
         } else {
-            self.terms.push(other);
+            self.terms.push(rhs);
         }
     }
 }
 
-impl<F: Field, const N: usize> AddAssign<&Term<F,N>> for Polynomial<F, N> {
-    fn add_assign(&mut self, other: &Term<F,N>) {
-        *self += *other;
+impl<F: Field, const N: usize> AddAssign for Polynomial<F, N> {
+    fn add_assign(&mut self, other: Self) {
+        for &t in &other.terms { *self += t };
+    }
+}
+
+impl<F: Field, const N: usize> Add for Polynomial<F, N> {
+    type Output = Self;
+
+    fn add(mut self, other: Self) -> Self::Output {
+        self += other;
+
+        // return
+        self
     }
 }
 
@@ -391,7 +382,7 @@ impl<F: Field, const N: usize> Add for &Polynomial<F, N> {
 
     fn add(self, other: Self) -> Self::Output {
         let mut out = self.clone();
-        for t in &other.terms { out += t };
+        for &t in &other.terms { out += t };
 
         // return
         out
@@ -414,26 +405,9 @@ impl<F: Field, const N: usize> Add<Polynomial<F, N>> for &Polynomial<F, N> {
     }
 }
 
-impl<F: Field, const N: usize> Add for Polynomial<F, N> {
-    type Output = Polynomial<F, N>;
-
-    fn add(self, other: Self) -> Self::Output {
-        &self + &other
-    }
-}
 
 
-impl<F: Field, const N: usize> AddAssign for Polynomial<F, N> {
-    fn add_assign(&mut self, other: Self) {
-        *self += &other;
-    }
-}
 
-impl<F: Field, const N: usize> AddAssign<&Self> for Polynomial<F, N> {
-    fn add_assign(&mut self, other: &Self) {
-        for t in &other.terms { *self += t };
-    }
-}
 
 
 

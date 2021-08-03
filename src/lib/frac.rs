@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub, Mul, Div};
+use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign};
 
 
 /// integer type for fractions
@@ -55,10 +55,10 @@ impl Frac {
 impl Add for Frac {
     type Output = Self;
 
-    fn add(self, rhs: Self) -> Self {
+    fn add(self, other: Self) -> Self {
         Frac::new(
-            self.numer * rhs.denom + rhs.numer * self.denom,
-            self.denom * rhs.denom,
+            self.numer * other.denom + other.numer * self.denom,
+            self.denom * other.denom,
         )
     }
 }
@@ -66,10 +66,10 @@ impl Add for Frac {
 impl Sub for Frac {
     type Output = Self;
 
-    fn sub(self, rhs: Self) -> Self {
+    fn sub(self, other: Self) -> Self {
         Frac::new(
-            self.numer * rhs.denom - rhs.numer * self.denom,
-            self.denom * rhs.denom,
+            self.numer * other.denom - other.numer * self.denom,
+            self.denom * other.denom,
         )
     }
 }
@@ -77,24 +77,46 @@ impl Sub for Frac {
 impl Mul for Frac {
     type Output = Self;
 
-    fn mul(self, rhs: Self) -> Self {
+    fn mul(self, other: Self) -> Self {
         Frac::new(
-            self.numer * rhs.numer,
-            self.denom * rhs.denom
+            self.numer * other.numer,
+            self.denom * other.denom
         )
     }
 }
 
 impl Div for Frac {
     type Output = Self;
-
-    fn div(self, rhs: Self) -> Self {
+    
+    fn div(self, other: Self) -> Self {
         Frac::new(
-            self.numer * rhs.denom,
-            self.denom * rhs.numer,
+            self.numer * other.denom,
+            self.denom * other.numer,
         )
     }
 }
+
+/// implements the given operation-assignment traits for fractions in the most
+/// obvious way
+/// 
+/// for example if the operation in question is star, `⋆`, then `a ⋆= b`
+/// is the same as `a = a ⋆ b`.
+macro_rules! impl_op_assign_for_frac_simple {
+    ($trait_name:ty, $op_ass_func:ident, $op_func:ident) => {
+        impl $trait_name for Frac {
+            #[inline]
+            fn $op_ass_func(&mut self, other: Self) {
+                *self = self.$op_func(other);
+            }
+        }
+    };
+}
+
+impl_op_assign_for_frac_simple! { AddAssign, add_assign, add }
+impl_op_assign_for_frac_simple! { SubAssign, sub_assign, sub }
+impl_op_assign_for_frac_simple! { MulAssign, mul_assign, mul }
+impl_op_assign_for_frac_simple! { DivAssign, div_assign, div }
+
 
 impl std::fmt::Display for Frac {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

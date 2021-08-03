@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub, Mul, Div};
+use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign, Div, DivAssign};
 
 use super::frac::Frac;
 
@@ -52,11 +52,11 @@ pub trait Field:
     + Copy
     + std::fmt::Display
     + PartialEq
-    + Add<Self, Output = Self>
-    + Sub<Self, Output = Self>
+    + Add<Self, Output = Self> + AddAssign<Self>
+    + Sub<Self, Output = Self> + SubAssign<Self>
     + Zero
-    + Mul<Self, Output = Self>
-    + Div<Self, Output = Self>
+    + Mul<Self, Output = Self> + MulAssign<Self>
+    + Div<Self, Output = Self> + DivAssign<Self>
     + One
 {
     fn powi32(&self, p: i32) -> Self;
