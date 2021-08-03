@@ -89,36 +89,47 @@ impl<F: Field> Mat<F> {
 		&self.entries
 	}
 
-	pub fn get_mut(&mut self, r: usize, c: usize) -> &mut F {
+	pub fn get_mut<'a>(&'a mut self, r: usize, c: usize) -> &'a mut F {
 		&mut self.entries[r*self.cols+c]
 	}
 
 	pub fn rows(&self) -> usize { self.rows }
 	pub fn cols(&self) -> usize { self.cols	}
 
+	pub fn get_row_iter(&self, r: usize) -> impl Iterator<Item=&F> {
+		self.entries[r*self.cols..(r+1)*self.cols].iter()
+	}
+
+	pub fn get_row_iter_mut(&mut self, r: usize) -> impl Iterator<Item=&mut F> {
+		self.entries[r*self.cols..(r+1)*self.cols].iter_mut()
+	}
+
 	/// transposed to be column vector
-	pub fn get_row(&self, r:usize) -> Mat<F> {
+	pub fn get_row(&self, r: usize) -> Mat<F> {
 		Mat {
-			entries: (0..self.cols).map(|c| self.get(r,c).clone()).collect(),
+			entries: self.get_row_iter(r).map(|x| x.clone()).collect(),
 			rows: self.cols,
 			cols: 1
 		}
 	}
 
-	pub fn get_row_iter(&self, r:usize) -> impl Iterator<Item=&F> {
-		self.entries[r*self.cols..(r+1)*self.cols].iter()
+	pub fn get_col_iter(&self, c: usize) -> impl Iterator<Item=&F> {
+		(0..self.rows).map(move |r| self.get(r,c))
+	}
+
+	pub fn get_col_iter_mut(& mut self, c: usize) -> impl Iterator<Item=&mut F> {
+		// magic code that I got from discord.
+		// the more simple (0..self.rows).map(move |r| entries.get_mut(r,c))
+		// has weird lifetime issues. This works though, so sicko mode
+		self.entries.chunks_exact_mut(self.rows).map(move |row| &mut row[c])
 	}
 
 	pub fn get_col(&self, c:usize) -> Mat<F> {
 		Mat {
-			entries: (0..self.rows).map(|r| self.get(r,c).clone()).collect(),
+			entries: self.get_col_iter(c).map(|x| x.clone()).collect(),
 			rows: self.rows,
 			cols: 1
 		}
-	}
-
-	pub fn get_col_iter(&self, c:usize) -> impl Iterator<Item=&F> {
-		(0..self.rows).map(move |r| self.get(r,c))
 	}
 }
 
@@ -143,7 +154,7 @@ impl<F: Field> Add for &Mat<F> {
 			panic!("tried to add matrix with incompatible dimensions.")
 		}
 		return Mat::new(self.rows, self.cols,
-			self.entries.iter().zip(other.entries.iter()).map(|(x,y)| *x+*y).collect::<Vec<F>>()
+			self.entries.iter().zip(other.entries.iter()).map(|(&x,&y)| x+y).collect::<Vec<F>>()
 		);
 	}
 }
@@ -154,7 +165,7 @@ impl<F: Field> Mul<F> for &Mat<F> {
 
 	fn mul(self, scalar: F) -> Mat<F> {
 		return Mat::new(self.rows, self.cols,
-			self.entries.iter().map(|x| *x*scalar).collect()
+			self.entries.iter().map(|&x| x*scalar).collect()
 		);
 	}
 }
