@@ -1,4 +1,5 @@
 use std::ops::{Add, Sub, Mul, Div};
+use std::cmp::Ordering;
 
 use super::frac::Frac;
 
@@ -79,31 +80,44 @@ field_impl! { f32 f64 Frac }
 
 // Numerical Stability Norm ----------------------------------------------------
 
-/// Assigns a value in f64 that indicates how "big" a number is. More precisely,
-/// it is used to determine what number is best to divide by. For lu
-/// decomposition (or just Gaussian elimination in general), it is always best
-/// to divide by large floats, since this will lead to the least rounding/
-/// float point problems.
-pub trait StabilityNorm {
-    fn stability_norm(&self) -> f64;
+/// Partial order to indicate which element has greater stability.
+/// More precisely, it is used to determine what number is best to divide by. 
+/// For lu decomposition (or just Gaussian elimination in general), it is 
+/// always best to divide by large floats, since this will lead to the least
+/// rounding/ float point problems.
+/// 
+/// Needs to satisfy 0<= every number, (and every number !<= 0) in order
+/// to avoid divide by 0.
+pub trait StabilityCmp {
+    fn stability_cmp(&self, other: &Self) -> Option<Ordering>;
 }
 
-macro_rules! stability_norm_impl {
+macro_rules! stability_cmp_impl {
     ($($t:ty)*) => ($(
-        impl StabilityNorm for $t {
-            fn stability_norm(&self) -> f64 {
-                (*self as f64).abs()
+        impl StabilityCmp for $t {
+            fn stability_cmp(&self, other: &Self) -> Option<Ordering> {
+                self.abs().partial_cmp(&other.abs())
             }
         }
     )*)
 }
 
-stability_norm_impl! { f32 f64 }
+stability_cmp_impl! { f32 f64 }
 
-/// the max stability norm of a vec of fractions will be the one with the
-/// one with the minimum sum of numerator+denominator.
-impl StabilityNorm for Frac {
-    fn stability_norm(&self) -> f64 {
-        (-self.numer.abs()-self.denom.abs()) as f64
+/// stability cmp for Frac. First priority is making it so that 0 is leq than
+/// everything in order for 0 to never be chosen as max value to divide by
+/// (that would do division by 0 and get NaN). Otherwise, the ordering chooses
+/// a value based on largest sum of abs of numer and denom, in order to have
+/// avoid very large denominators/numerators.
+impl StabilityCmp for Frac {
+    fn stability_cmp(&self, other: &Self) -> Option<Ordering> {
+        if *self == Frac::ZERO {
+            Some(Ordering::Less)
+        } else if *other == Frac::ZERO {
+            Some(Ordering::Greater)
+        } else {
+            (other.numer.abs()+other.denom.abs())
+                .partial_cmp(&(self.numer.abs()+self.denom.abs()))
+        }
     }
 }

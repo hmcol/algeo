@@ -1,4 +1,4 @@
-use super::super::num::{Field, StabilityNorm};
+use super::super::num::{Field, StabilityCmp};
 use super::mat::Mat;
 use super::util::get_max_index;
 use std::collections::HashSet;
@@ -9,7 +9,7 @@ pub struct LUDecomposition<F: Field> {
 	u : Mat<F>
 }
 
-impl<F: Field+StabilityNorm> Mat<F> {
+impl<F: Field+StabilityCmp> Mat<F> {
 
 	/// NOT IMPLEMENTED YET. THIS IS REMNANTS FROM ROW ECHELON FORM METHOD.
 	pub fn lu(&self) -> LUDecomposition<F> {
@@ -34,8 +34,10 @@ impl<F: Field+StabilityNorm> Mat<F> {
 				// FIRST: put best row at the top
 
 				// get index of most stable (usually largest) entry in column
-				let norms = current_col.entries()[c..].iter().map(|x| x.stability_norm());
-				let stable_index = get_max_index(norms)+c;
+				let stable_index = get_max_index(
+					current_col.entries()[c..].iter(),
+					|x,y| x.stability_le(y)
+				)+c;
 
 				let temp_perm = Mat::permutation(n, c, stable_index);
 				mat = &Mat::scale(n, c, F::ONE/ *current_col.get_unchecked(stable_index,0)) * &(&temp_perm * &mat);
