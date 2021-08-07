@@ -19,6 +19,8 @@ impl<F: Field> Mat<F> {
 		}
 	}
 
+	// Mat<F> constructors ----------------------------------------------------
+
 	/// identity matrix with of dimension `n * n`
 	pub fn identity(n: usize) -> Mat<F> {
 		Mat::new(n, n, 
@@ -49,7 +51,7 @@ impl<F: Field> Mat<F> {
 	}
 
 	/// elementary matrix of dimension `rows*rows` that scales the `i`th row
-	pub fn scale(rows: usize, i: usize, scale: F) -> Mat<F> {
+	pub fn scale_mat(rows: usize, i: usize, scale: F) -> Mat<F> {
 		Mat::new(rows, rows, 
 			get_box_iter(rows, rows).map(|(r,c)|
 				if r==c && r==i { scale }
@@ -66,6 +68,23 @@ impl<F: Field> Mat<F> {
 			get_box_iter(rows, rows).map(|(r,c)|
 				if (r,c)==(source,target) || (c,r)==(source,target) ||
 					(r==c && r!=source && c!= target) {
+					F::ONE
+				}
+				else { F::ZERO }
+			).collect()
+		)
+	}
+
+	/// input - permutation : Vec<F> of length n with entries `0..(n-1)` in
+	/// some order. The vec can be thought of as a bijection of
+	/// {0,1,...,n-1} -> {0,1,...,n-1}
+	/// and `permutation_from_vec` returns a matrix that does this permutation
+	/// to the rows.
+	pub fn permutation_from_vec(permutation : Vec<usize>) -> Mat<F> {
+		let n = permutation.len();
+		Mat::new(n, n,
+			get_box_iter(n, n).map(|(r,c)|
+				if permutation[r] == c {
 					F::ONE
 				}
 				else { F::ZERO }
@@ -91,6 +110,30 @@ impl<F: Field> Mat<F> {
 			get_box_iter(self.cols, self.rows).map(|(c,r)| self.get_unchecked(r,c)).cloned().collect()
 		)
 	}
+
+	// Mat<F> mutators ---------------------------------------------------------
+
+	pub fn scale(&mut self, i: usize, scale: F) {
+		for c in 0..self.cols {
+			self[(i, c)] = scale*self[(i, c)];
+		}
+	}
+
+	pub fn permute(&mut self, source: usize, target: usize) {
+		for c in 0..self.cols {
+			let temp = self[(source, c)];
+			self[(source, c)] = self[(target, c)];
+			self[(target, c)] = temp;
+		}
+	}
+
+	pub fn replace(&mut self, source: usize, target: usize, scalar: F) {
+		for c in 0..self.cols {
+			self[(target, c)] = self[(target,c)] + self[(source, c)] * scalar;
+		}
+	}
+
+	// Mat<F> getters (possibly mutable) ---------------------------------------
 
 	pub fn get_unchecked(&self, r: usize, c: usize) -> &F {
 		&self.entries[r*self.cols+c]

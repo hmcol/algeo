@@ -26,7 +26,7 @@ impl<F: Field+StabilityCmp> Mat<F> {
 				)+c;
 
 				let temp_perm = Mat::permutation(n, c, stable_index);
-				temp = &Mat::scale(n, c, F::ONE/ *current_col.get_unchecked(stable_index,0)) * &(&temp_perm * &temp);
+				temp = &Mat::scale_mat(n, c, F::ONE/ *current_col.get_unchecked(stable_index,0)) * &(&temp_perm * &temp);
 				permutation = &temp_perm * &permutation;
 
 				// SECOND: do replacement
