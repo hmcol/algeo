@@ -19,15 +19,17 @@ impl<F: Field> Mat<F> {
 		}
 	}
 
-	pub fn identity(rows: usize) -> Mat<F> {
-		Mat::new(rows, rows, 
-			get_box_iter(rows, rows).map(|(r,c)|
+	/// identity matrix with of dimension `n * n`
+	pub fn identity(n: usize) -> Mat<F> {
+		Mat::new(n, n, 
+			get_box_iter(n, n).map(|(r,c)|
 				if r==c { F::ONE }
 				else { F::ZERO }
 			).collect()
 		)
 	}
 
+	/// `k`th standard basis vector of dimension `n`
 	pub fn e(k: usize, n:usize) -> Mat<F> {
 		Mat::new(n,1,
 			(0..n).map(|r|
@@ -37,6 +39,7 @@ impl<F: Field> Mat<F> {
 		)
 	}
 
+	/// zero matrix of dimension `rows * cols`
 	pub fn zero(rows:usize, cols:usize) -> Mat<F> {
 		Mat::new(rows, cols, 
 			get_box_iter(rows, cols).map(|(_r,_c)|
@@ -45,6 +48,7 @@ impl<F: Field> Mat<F> {
 		)
 	}
 
+	/// elementary matrix of dimension `rows*rows` that scales the `i`th row
 	pub fn scale(rows: usize, i: usize, scale: F) -> Mat<F> {
 		Mat::new(rows, rows, 
 			get_box_iter(rows, rows).map(|(r,c)|
@@ -55,6 +59,8 @@ impl<F: Field> Mat<F> {
 		)
 	}
 
+	/// elementary matrix of dimension `rows*rows` that permutes the `source`
+	/// and `target` rows.
 	pub fn permutation(rows: usize, source: usize, target: usize) -> Mat<F> {
 		Mat::new(rows, rows,
 			get_box_iter(rows, rows).map(|(r,c)|
@@ -67,6 +73,8 @@ impl<F: Field> Mat<F> {
 		)
 	}
 
+	/// elementary matrix of dimension `rows*rows` adds the `source` row
+	/// scaled by `scalar` to the `target` row.
 	pub fn replacement(rows: usize, source: usize, target: usize, scalar: F) -> Mat<F> {
 		Mat::new(rows, rows,
 			get_box_iter(rows, rows).map(|(r,c)|
@@ -77,6 +85,7 @@ impl<F: Field> Mat<F> {
 		)
 	}
 
+	/// returns transposition of the matrix.
 	pub fn transpose(&self) -> Mat<F> {
 		Mat::new(self.cols, self.rows,
 			get_box_iter(self.cols, self.rows).map(|(c,r)| self.get_unchecked(r,c)).cloned().collect()
