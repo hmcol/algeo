@@ -36,7 +36,7 @@ impl<F: Field+StabilityCmp> Mat<F> {
 				// get index of most stable (usually largest) entry in column
 				let stable_index = get_max_index(
 					current_col.entries()[c..].iter(),
-					|x,y| x.stability_le(y)
+					|x,y| x.stability_cmp(y)
 				)+c;
 
 				let temp_perm = Mat::permutation(n, c, stable_index);
