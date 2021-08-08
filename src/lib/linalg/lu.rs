@@ -61,9 +61,15 @@ impl<F: Field+StabilityCmp> Mat<F> {
 
 			// otherwise, we permute both our matrix and our permutation
 			// to get the stable_index to be in the appropriate row.
-			mat.permute(r, stable_index);
-			mat.scale(r, F::ONE/mat[(c,c)]);
 			perm.swap(r, stable_index);
+			mat.permute(r, stable_index);
+
+			// scale l and u correspondingly
+			let scalar = mat[(r,c)];
+			elem_prod[(r,r)] = scalar;
+			mat.scale(r, F::ONE/scalar);
+			
+			
 
 			// then, we do replacement
 			for r2 in (r+1)..mat.rows() {

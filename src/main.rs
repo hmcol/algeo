@@ -39,7 +39,7 @@ fn main() {
 
     println!("{}", lu.u);
     println!("{}", &lu.l * &lu.u);
-    println!("{}", &lu.p * &(&lu.l * &lu.u));
+    println!("{}", &lu.p.transpose() * &(&lu.l * &lu.u));
 
 	//println!("{:?}", mat.reduced_row_echelon().0);
 	//println!("{:?}", mat.compute_kernel());
