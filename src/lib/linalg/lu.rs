@@ -49,13 +49,14 @@ impl<F: Field+StabilityCmp> Mat<F> {
 			// get index of most stable (usually largest) entry in column after
 			// the current row.
 			let stable_index = get_max_index(
-				mat.get_col_iter(c).skip(std::cmp::max(0, (r as i32) -1) as usize),
+				mat.get_col_iter(c).skip(r),
 				|x,y| x.stability_cmp(y)
 			)+r;
 
 			// if "most stable" index is zero, then no replacement is needed
 			// in this column, so we skip to the next.
-			if mat[(stable_index, c)]==F::ZERO {
+			let scalar = mat[(stable_index, c)];
+			if scalar == F::ZERO {
 				continue;
 			}
 
@@ -64,12 +65,18 @@ impl<F: Field+StabilityCmp> Mat<F> {
 			perm.swap(r, stable_index);
 			mat.permute(r, stable_index);
 
+			// permute L matrix, but only entries under the diagonal
+			if c>0{
+				for c2 in 0..c {
+					let temp = elem_prod[(r, c2)];
+					elem_prod[(r, c2)] = elem_prod[(stable_index, c2)];
+					elem_prod[(stable_index, c2)] = temp;
+				}
+			}
+
 			// scale l and u correspondingly
-			let scalar = mat[(r,c)];
 			elem_prod[(r,r)] = scalar;
 			mat.scale(r, F::ONE/scalar);
-			
-			
 
 			// then, we do replacement
 			for r2 in (r+1)..mat.rows() {
@@ -87,5 +94,21 @@ impl<F: Field+StabilityCmp> Mat<F> {
 			l: elem_prod,
 			u: mat
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::Mat;
+
+	#[test]
+	fn test_lu(){
+		let mat : Mat<f32> = Mat::new(3,4,
+			vec![
+				0.0, 1.0, 2.0,  3.0,
+				4.0, 5.0, 6.0,  7.0,
+				8.0, 9.0, 10.0, 11.0
+			]
+		);
 	}
 }
