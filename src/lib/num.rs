@@ -76,7 +76,29 @@ macro_rules! field_impl {
 
 field_impl! { f32 f64 Frac }
 
+// Epsilon Equal ---------------------------------------------------------------
 
+pub trait EpsilonEquality {
+    fn epsilon_equals(&self, other: &Self) -> bool;
+}
+
+macro_rules! epsilon_equality_impl {
+    ($($t:ty)*) => ($(
+        impl EpsilonEquality for $t {
+            fn epsilon_equals(&self, other: &Self) -> bool {
+                (self-other).abs() < <$t>::EPSILON
+            }
+        }
+    )*)
+}
+
+epsilon_equality_impl! { f32 f64 }
+
+impl EpsilonEquality for Frac {
+    fn epsilon_equals(&self, other: &Self) -> bool {
+        self == other
+    }
+}
 
 // Numerical Stability Norm ----------------------------------------------------
 

@@ -1,4 +1,4 @@
-use super::super::num::Field;
+use super::super::num::{Field, EpsilonEquality};
 use super::util::get_box_iter;
 use std::ops::{Add, Mul, Index, IndexMut};
 use std::fmt;
@@ -260,7 +260,15 @@ impl<F: Field> Mul for &Mat<F> {
 	}
 }
 
-
+impl<F: Field+EpsilonEquality> EpsilonEquality for Mat<F> {
+	fn epsilon_equals(&self, other: &Self) -> bool {
+		let frobenius_norm = self.entries.iter().zip(other.entries().iter())
+			.map(|(&a,&b)| a+(F::ZERO-F::ONE)*b)
+			.fold(F::ZERO, |accum, x| accum + x*x);
+		
+		frobenius_norm.epsilon_equals(&F::ZERO)
+	}
+}
 
 
 

@@ -18,3 +18,35 @@ pub fn get_max_index<T, I, C>(slice: I, le: C) -> usize where
         .unwrap()
 		.0
 }
+
+pub fn num_to_seq(n: usize, base: usize) -> impl Iterator<Item=(usize)> {
+	BaseSeqIterator::new(n, base)
+}
+
+struct BaseSeqIterator {
+	n: usize,
+	base: usize
+}
+
+impl BaseSeqIterator {
+	pub fn new(n: usize, base: usize) -> BaseSeqIterator {
+		BaseSeqIterator {
+			n: n*base,
+			base
+		}
+	}
+}
+
+impl Iterator for BaseSeqIterator {
+	type Item = usize;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.n /= self.base;
+
+		if self.n == 0 {
+			None
+		} else {
+			Some(self.n % self.base)
+		}
+	}
+}

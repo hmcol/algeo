@@ -1,4 +1,4 @@
-use super::super::num::{Field, StabilityCmp};
+use super::super::num::{Field, StabilityCmp, EpsilonEquality};
 use super::mat::Mat;
 use super::util::get_max_index;
 
@@ -8,7 +8,7 @@ pub struct LUDecomposition<F: Field> {
 	pub u : Mat<F>
 }
 
-impl<F: Field+StabilityCmp> Mat<F> {
+impl<F: Field+StabilityCmp+EpsilonEquality> Mat<F> {
 
 	/// NOT TESTED AT ALL, PROBABLY LOTS OF BUGS.
 	/// 
@@ -55,8 +55,12 @@ impl<F: Field+StabilityCmp> Mat<F> {
 
 			// if "most stable" index is zero, then no replacement is needed
 			// in this column, so we skip to the next.
+			//
+			// TODO: switch from `scalar == F::ZERO` to something like
+			// `scalar-F::ZERO < eps`. Somehow this should be integrated in
+			// StabilityCmp.
 			let scalar = mat[(stable_index, c)];
-			if scalar == F::ZERO {
+			if scalar.epsilon_equals(&F::ZERO) {
 				continue;
 			}
 
@@ -66,8 +70,8 @@ impl<F: Field+StabilityCmp> Mat<F> {
 			mat.permute(r, stable_index);
 
 			// permute L matrix, but only entries under the diagonal
-			if c>0{
-				for c2 in 0..c {
+			if r>0 {
+				for c2 in 0..r {
 					let temp = elem_prod[(r, c2)];
 					elem_prod[(r, c2)] = elem_prod[(stable_index, c2)];
 					elem_prod[(stable_index, c2)] = temp;
@@ -80,9 +84,9 @@ impl<F: Field+StabilityCmp> Mat<F> {
 
 			// then, we do replacement
 			for r2 in (r+1)..mat.rows() {
-				let scalar = mat[(r2,c)];
-				mat.replace(r, r2, F::ZERO-scalar);
-				elem_prod[(r2, r)] = scalar;
+				let scalar2 = mat[(r2,c)];
+				mat.replace(r, r2, F::ZERO-scalar2);
+				elem_prod[(r2, r)] = scalar2;
 			}
 			
 			// go on to the next row, since after doing replacement we should
@@ -100,15 +104,65 @@ impl<F: Field+StabilityCmp> Mat<F> {
 #[cfg(test)]
 mod tests {
 	use super::Mat;
-
+	use super::super::super::num::EpsilonEquality;
+	use super::super::util::num_to_seq;
+	
 	#[test]
-	fn test_lu(){
-		let mat : Mat<f32> = Mat::new(3,4,
+	fn test_lu_1(){
+		let mat : Mat<f32> = Mat::new(5,5,
 			vec![
-				0.0, 1.0, 2.0,  3.0,
-				4.0, 5.0, 6.0,  7.0,
-				8.0, 9.0, 10.0, 11.0
+				5.0, 5.0, 5.0,  5.0,  1.0,
+				4.0, 5.0, 6.0,  7.0,  1.0,
+				8.0, 9.0, 10.0, 11.0, 1.0,
+				0.0, 9.0, 2.0,  3.0,  1.0,
+				7.0, 6.0, 9.0,  4.0,  1.0
 			]
 		);
+		let lu = mat.lu();
+
+		assert_eq!(mat, &lu.p.transpose() * &(&lu.l * &lu.u));
+	}
+
+	#[test]
+	fn bad_case() {
+		let mut mat : Mat<f64> = Mat::new(3, 4,
+			vec![
+				1.0, 2.0, 2.0, 0.0,
+				2.0, 0.0, 1.0, 0.0,
+				2.0, 1.0, 0.0, 0.0
+			]
+		);
+		let lu = mat.lu();
+		println!("{}", lu.u);
+		println!("{}", lu.l);
+		println!("{}", lu.p);
+		assert!(mat.epsilon_equals(&(&lu.p.transpose() * &(&lu.l * &lu.u))));
+	}
+
+	#[test]
+	fn test_lu() {
+
+		let n: usize = 3;
+		let m: usize = 4;
+		let values = vec![0.0, 1.0, 2.0];
+
+		// iterate through all matrices with only entries in `values`
+		for v in 0..(values.len().pow((n*m) as u32)) {
+			let mut entries: Vec<f32> = num_to_seq(v, values.len())
+				.map(|i| values[i]).collect();
+			
+			for _i in (entries.len())..(n*m) {
+				entries.push(0.0);
+			}
+
+			let mat : Mat<f32> = Mat::new(n, m, entries);
+			let lu = mat.lu();
+			let prod = &lu.p.transpose()*&(&lu.l*&lu.u);
+			
+			assert!(mat.epsilon_equals(&prod),
+				"failed on {} == {}",
+				mat, prod
+			);
+		}
 	}
 }

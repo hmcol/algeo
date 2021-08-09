@@ -25,24 +25,17 @@ fn main() {
 
 
 
-    let mat : Mat<f32> = Mat::new(5,5,
+    let mat : Mat<f32> = Mat::new(3, 4,
         vec![
-            5.0, 5.0, 5.0,  5.0,  1.0,
-            4.0, 5.0, 6.0,  7.0,  1.0,
-			8.0, 9.0, 10.0, 11.0, 1.0,
-            0.0, 9.0, 2.0,  3.0,  1.0,
-            7.0, 6.0, 9.0,  4.0,  1.0
-		]
+            0.0, 0.0, 0.0, 1.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 0.0
+        ]
     );
-	println!("{}", mat);
-    //println!("{}", mat.row_echelon().0);
-    
     let lu = mat.lu();
-
-    //println!("{}", lu.l);
-    //println!("{}", &lu.l * &lu.u);
-    println!("{}", &lu.p.transpose() * &(&lu.l * &lu.u));
-    //println!("{}", &lu.p * &(&lu.l * &lu.u));
+    println!("{}", lu.u);
+    println!("{}", lu.l);
+    println!("{}", lu.p);
 
 	//println!("{:?}", mat.reduced_row_echelon().0);
 	//println!("{:?}", mat.compute_kernel());
