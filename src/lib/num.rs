@@ -50,6 +50,7 @@ impl One for Frac {
 pub trait Field:
     Sized
     + Copy
+    + std::fmt::Debug
     + std::fmt::Display
     + PartialEq
     + Add<Self, Output = Self> + AddAssign<Self>

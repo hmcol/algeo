@@ -39,8 +39,8 @@ fn grlex_vs_grevlex() {
     
     for &a in &degs {
         for &b in &degs {
-            let grlex = cmp_grlex(a, b);
-            let grevlex = cmp_grevlex(a, b);
+            let grlex = mon_ord::grlex(a, b);
+            let grevlex = mon_ord::grevlex(a, b);
 
             if grlex != grevlex {
                 println!("cmp {} {} => grlex: {:<10} grevlex: {:<10}", 
