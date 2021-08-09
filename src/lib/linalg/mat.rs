@@ -177,6 +177,37 @@ impl<F: Field> Mat<F> {
 	pub fn get_col(&self, c:usize) -> Mat<F> {
 		Mat::from(self.get_col_iter(c).cloned())
 	}
+
+	// Debug/Testing methods ---------------------------------------------------
+
+	/// TODO: decide whether `is_upper_triangular` should require F to implement
+	/// `EpsilonEquality`. In practice, I'm only using `is_upper_triangular` to
+	/// verify the correctness of the LU decomposition, and in that case the
+	/// replacement operations are exact (so that I wouldn't have to loosen
+	/// equality to epsilon equality).
+	pub fn is_upper_triangular(&self) -> bool {
+		for r in 0..self.rows {
+			for c in 0..(std::cmp::min(r, self.cols)) {
+				if self[(r,c)] != F::ZERO {
+					return false;
+				}
+			}
+		}
+
+		true
+	}
+
+	pub fn is_lower_triangular(&self) -> bool {
+		for r in 0..self.rows {
+			for c in (std::cmp::min(r, self.cols)+1)..self.cols {
+				if self[(r,c)] != F::ZERO {
+					return false;
+				}
+			}
+		}
+		
+		true
+	}
 }
 
 impl<F: Field, I: Iterator<Item=F>> From<I> for Mat<F> {

@@ -158,7 +158,15 @@ mod tests {
 			let mat : Mat<f32> = Mat::new(n, m, entries);
 			let lu = mat.lu();
 			let prod = &lu.p.transpose()*&(&lu.l*&lu.u);
-			
+
+			assert!(lu.l.is_lower_triangular(),
+				"L={} is not lower triangular",
+				lu.l
+			);
+			assert!(lu.u.is_upper_triangular(),
+				"U={} is not upper triangular",
+				lu.u
+			);
 			assert!(mat.epsilon_equals(&prod),
 				"failed on {} == {}",
 				mat, prod
