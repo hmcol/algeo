@@ -178,6 +178,10 @@ impl<F: Field> Mat<F> {
 		Mat::from(self.get_col_iter(c).cloned())
 	}
 
+	pub fn frobenius_norm(&self) -> F {
+		self.entries.iter().fold(F::ZERO, |accum, &x| accum + x*x)
+	}
+
 	// Debug/Testing methods ---------------------------------------------------
 
 	/// TODO: decide whether `is_upper_triangular` should require F to implement
@@ -293,11 +297,7 @@ impl<F: Field> Mul for &Mat<F> {
 
 impl<F: Field+EpsilonEquality> EpsilonEquality for Mat<F> {
 	fn epsilon_equals(&self, other: &Self) -> bool {
-		let frobenius_norm = self.entries.iter().zip(other.entries().iter())
-			.map(|(&a,&b)| a+(F::ZERO-F::ONE)*b)
-			.fold(F::ZERO, |accum, x| accum + x*x);
-		
-		frobenius_norm.epsilon_equals(&F::ZERO)
+		(self + &(other*(F::ZERO-F::ONE))).frobenius_norm().epsilon_equals(&F::ZERO)
 	}
 }
 
