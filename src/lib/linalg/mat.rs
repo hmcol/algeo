@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use super::super::num::{Field, EpsilonEquality};
 use super::util::get_box_iter;
 use std::ops::{Add, Mul, Index, IndexMut};
@@ -151,8 +153,9 @@ impl<F: Field> Mat<F> {
 		}
 	}
 
+	// TODO Refactor into MulAssign
 	pub fn scale(&mut self, scalar: F) {
-		todo!();
+		self.entries.iter_mut().for_each(|x| *x = *x * scalar);
 	}
 
 	// Mat<F> getters (possibly mutable) ---------------------------------------
@@ -209,6 +212,13 @@ impl<F: Field> Mat<F> {
 
 	pub fn dot(&self, other: &Mat<F>) -> F {
 		self.entries.iter().zip(other.entries()).fold(F::ZERO, |accum, (&x, &y)| accum + x*y)
+	}
+	
+
+	// Util --------------------------------------------------------------------
+
+	pub fn index_iter(&self) -> impl Iterator<Item = (usize, usize)> {
+		(0..self.rows()).cartesian_product(0..self.cols())
 	}
 
 
