@@ -131,13 +131,13 @@ impl<F: Field> Mat<F> {
 
 	// Mat<F> mutators ---------------------------------------------------------
 
-	pub fn scale(&mut self, i: usize, scale: F) {
+	pub fn scale_row(&mut self, i: usize, scalar: F) {
 		for c in 0..self.cols {
-			self[(i, c)] = scale*self[(i, c)];
+			self[(i, c)] = scalar*self[(i, c)];
 		}
 	}
 
-	pub fn permute(&mut self, source: usize, target: usize) {
+	pub fn permute_rows(&mut self, source: usize, target: usize) {
 		for c in 0..self.cols {
 			let temp = self[(source, c)];
 			self[(source, c)] = self[(target, c)];
@@ -145,10 +145,14 @@ impl<F: Field> Mat<F> {
 		}
 	}
 
-	pub fn replace(&mut self, source: usize, target: usize, scalar: F) {
+	pub fn replace_row(&mut self, source: usize, target: usize, scalar: F) {
 		for c in 0..self.cols {
 			self[(target, c)] = self[(target,c)] + self[(source, c)] * scalar;
 		}
+	}
+
+	pub fn scale(&mut self, scalar: F) {
+		todo!();
 	}
 
 	// Mat<F> getters (possibly mutable) ---------------------------------------
@@ -199,6 +203,14 @@ impl<F: Field> Mat<F> {
 	pub fn frobenius_norm(&self) -> F {
 		self.entries.iter().fold(F::ZERO, |accum, &x| accum + x*x)
 	}
+
+	
+	// Operations --------------------------------------------------------------
+
+	pub fn dot(&self, other: &Mat<F>) -> F {
+		self.entries.iter().zip(other.entries()).fold(F::ZERO, |accum, (&x, &y)| accum + x*y)
+	}
+
 
 	// Debug/Testing methods ---------------------------------------------------
 

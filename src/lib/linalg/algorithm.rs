@@ -22,6 +22,18 @@ impl<F: Field+StabilityCmp+EpsilonEquality> Mat<F> {
 			Some((stable_index, scalar))
 		}
 	}
+
+	fn zero_rows(&self) -> usize {
+		let mut zero_rows = 0;
+
+		for r in 0..self.rows() {
+			if let None = self.index_of_first_nonzero_entry(r) {
+				zero_rows += 1;
+			}
+		}
+
+		zero_rows
+	}
 }
 
 impl<F: Field+EpsilonEquality> Mat<F> {
@@ -61,19 +73,19 @@ impl<F: Field> LUDecompositionInternal<F> {
 	// assumes src < target
 	fn permute(&mut self, src: usize, target: usize) {
 		self.p.swap(src, target);
-		self.u.permute(src, target);
+		self.u.permute_rows(src, target);
 		self.l.permute_under_diagonal(src, target);
 	}
 
 	fn scale_row(&mut self, r: usize, scalar: F) {
 		self.l[(r,r)] = scalar;
-		self.u.scale(r, F::ONE/scalar);
+		self.u.scale_row(r, F::ONE/scalar);
 	}
 
 	fn replace_col_under_row(&mut self, r: usize, c: usize) {
 		for r2 in (r+1)..self.u.rows() {
 			let scalar2 = self.u[(r2,c)];
-			self.u.replace(r, r2, F::ZERO-scalar2);
+			self.u.replace_row(r, r2, F::ZERO-scalar2);
 			self.l[(r2, r)] = scalar2;
 		}
 	}
@@ -140,38 +152,39 @@ pub trait RowEquivalentForm<F: Field> {
 	fn b(&mut self) -> &mut Mat<F>;
 
 	fn permute(&mut self, r1: usize, r2: usize){
-		self.p().permute(r1, r2);
-		self.b().permute(r1, r2);
+		self.p().permute_rows(r1, r2);
+		self.b().permute_rows(r1, r2);
 	}
 
 	fn scale(&mut self, r: usize, scalar: F){
-		self.p().scale(r, scalar);
-		self.b().scale(r, scalar);
+		self.p().scale_row(r, scalar);
+		self.b().scale_row(r, scalar);
 	}
 
 	fn replace_col_under_row(&mut self, r: usize, c: usize) {
 		for r2 in (r+1)..self.b().rows() {
 			let scalar2 = self.b()[(r2,c)];
-			self.p().replace(r, r2, F::ZERO-scalar2);
-			self.b().replace(r, r2, F::ZERO-scalar2);
+			self.p().replace_row(r, r2, F::ZERO-scalar2);
+			self.b().replace_row(r, r2, F::ZERO-scalar2);
 		}
 	}
 
 	fn replace_col_above_row(&mut self, r: usize, c: usize) {
 		for r2 in 0..r {
 			let scalar2 = self.b()[(r2,c)];
-			self.p().replace(r, r2, F::ZERO-scalar2);
-			self.b().replace(r, r2, F::ZERO-scalar2);
+			self.p().replace_row(r, r2, F::ZERO-scalar2);
+			self.b().replace_row(r, r2, F::ZERO-scalar2);
 		}
 	}
 }
 
-pub struct RowEchelonForm<F: Field> {
+pub struct RowEchelonForm<'a, F: Field> {
 	pub p: Mat<F>,
 	pub b: Mat<F>,
+	pub original: &'a Mat<F>,
 }
 
-impl<F: Field> RowEquivalentForm<F> for RowEchelonForm<F> {
+impl<'a, F: Field> RowEquivalentForm<F> for RowEchelonForm<'a, F> {
 	fn p(&mut self) -> &mut Mat<F> {
 		&mut self.p
 	}
@@ -181,12 +194,13 @@ impl<F: Field> RowEquivalentForm<F> for RowEchelonForm<F> {
 	}
 }
 
-pub struct ReducedRowEchelonForm<F: Field> {
+pub struct ReducedRowEchelonForm<'a, F: Field> {
 	pub p: Mat<F>,
 	pub rref: Mat<F>,
+	pub original: &'a Mat<F>,
 }
 
-impl<F: Field> RowEquivalentForm<F> for ReducedRowEchelonForm<F> {
+impl<'a, F: Field> RowEquivalentForm<F> for ReducedRowEchelonForm<'a, F> {
 	fn p(&mut self) -> &mut Mat<F> {
 		&mut self.p
 	}
@@ -205,6 +219,7 @@ impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
 		let mut form = RowEchelonForm {
 			b: self.clone(),
 			p: Mat::identity(n),
+			original: &self
 		};
 
 		// row that hasn't been cleared yet
@@ -228,30 +243,23 @@ impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
 	}
 }
 
-impl<F: Field + StabilityCmp + EpsilonEquality> RowEchelonForm<F> {
+impl<'a, F: Field + StabilityCmp + EpsilonEquality> RowEchelonForm<'a, F> {
 
 	pub fn nullity(&self) -> usize {
 		self.b.cols() - self.rank()
 	}
 
 	pub fn rank(&self) -> usize {
-		let mut zero_rows = 0;
-		
-		for r in 0..self.b.rows() {
-			if let None = self.b.index_of_first_nonzero_entry(r) {
-				zero_rows += 1;
-			}
-		}
-
-		self.b.rows() - zero_rows
+		self.b.rows() - self.b.zero_rows()
 	}
 
-	pub fn to_rref(self) -> ReducedRowEchelonForm<F> {
+	pub fn to_rref(self) -> ReducedRowEchelonForm<'a, F> {
 		let n = self.b.rows();
 
 		let mut form = ReducedRowEchelonForm {
 			p: self.p,
 			rref: self.b,
+			original: self.original
 		};
 
 		for r in (1..n).rev() {
@@ -264,7 +272,15 @@ impl<F: Field + StabilityCmp + EpsilonEquality> RowEchelonForm<F> {
 	}
 }
 
-impl<F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<F> {
+impl<'a, F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<'a, F> {
+
+	pub fn nullity(&self) -> usize {
+		self.rref.cols() - self.rank()
+	}
+
+	pub fn rank(&self) -> usize {
+		self.rref.rows() - self.rref.zero_rows()
+	}
 
 	pub fn compute_kernel(&self) -> Vec<Mat<F>> {
 		let n = self.rref.cols();
@@ -291,13 +307,23 @@ impl<F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<F> {
 
 		basis
 	}
+
+	pub fn compute_range(&self) -> Vec<Mat<F>> {
+		let bound_variables : HashSet<usize> = 
+			(0..self.rref.rows())
+				.filter_map(
+					|r| self.rref.index_of_first_nonzero_entry(r)
+				).collect();
+		
+		bound_variables.into_iter().map(|c| self.original.get_col(c)).collect()
+	}
 }
 
 
 #[cfg(test)]
 mod tests {
 	use crate::lib::linalg::util::mat_iterator;
-use crate::lib::num::Field;
+	use crate::lib::num::Field;
 
 	use super::Mat;
 	use super::super::super::num::EpsilonEquality;

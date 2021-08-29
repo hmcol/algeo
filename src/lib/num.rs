@@ -143,3 +143,15 @@ impl StabilityCmp for Frac {
         }
     }
 }
+
+impl PartialOrd for Frac {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Frac {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.numer*other.denom).cmp(&(other.numer*self.denom))
+    }
+}
