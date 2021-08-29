@@ -5,6 +5,8 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Index, Mul, MulAssign, Sub, SubAs
 use std::collections::BTreeMap;
 use std::iter::FromIterator;
 
+use xops::binop;
+
 use super::num::*;
 
 // multidegree -----------------------------------------------------------------
@@ -116,27 +118,15 @@ impl AddAssign for MDeg {
     }
 }
 
+#[binop(refs_clone)]
 impl Add for MDeg {
-    type Output = Self;
+    type Output = MDeg;
 
     fn add(mut self, other: Self) -> Self::Output {
         self += other;
 
         // return
         self
-    }
-}
-
-impl Add for &MDeg {
-    type Output = MDeg;
-
-    fn add(self, other: Self) -> Self::Output {
-        let mut out = self.clone();
-
-        out += other;
-
-        // return
-        out
     }
 }
 
@@ -245,27 +235,15 @@ impl<F: Field> MulAssign for Term<F> {
     }
 }
 
+#[binop(refs_clone)]
 impl<F: Field> Mul for Term<F> {
-    type Output = Self;
+    type Output = Term<F>;
 
     fn mul(mut self, other: Self) -> Self::Output {
         self *= other;
 
         // return
         self
-    }
-}
-
-impl<F: Field> Mul for &Term<F> {
-    type Output = Term<F>;
-
-    fn mul(self, other: Self) -> Self::Output {
-        let mut out = self.clone();
-
-        out *= other;
-
-        // return
-        out
     }
 }
 
@@ -344,38 +322,15 @@ impl<F: Field> AddAssign<Term<F>> for Polynomial<F> {
     }
 }
 
-impl<F: Field> Add<&Term<F>> for Polynomial<F> {
-    type Output = Self;
+#[binop(commute, refs_clone)]
+impl<F: Field> Add<Term<F>> for Polynomial<F> {
+    type Output = Polynomial<F>;
 
-    fn add(mut self, rhs: &Term<F>) -> Self::Output {
+    fn add(mut self, rhs: Term<F>) -> Self::Output {
         self += rhs;
 
         // return
         self
-    }
-}
-
-impl<F: Field> Add<Term<F>> for Polynomial<F> {
-    type Output = Self;
-
-    fn add(self, rhs: Term<F>) -> Self::Output {
-        self + &rhs
-    }
-}
-
-impl<F: Field> Add<&Term<F>> for &Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    fn add(self, rhs: &Term<F>) -> Self::Output {
-        self.clone() + rhs
-    }
-}
-
-impl<F: Field> Add<Term<F>> for &Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    fn add(self, rhs: Term<F>) -> Self::Output {
-        self + &rhs
     }
 }
 
@@ -395,26 +350,15 @@ impl<F: Field> AddAssign<&Self> for Polynomial<F> {
     }
 }
 
+#[binop(refs_clone)]
 impl<F: Field> Add for Polynomial<F> {
-    type Output = Self;
+    type Output = Polynomial<F>;
 
     fn add(mut self, other: Self) -> Self::Output {
         self += other;
 
         // return
         self
-    }
-}
-
-impl<F: Field> Add for &Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    fn add(self, other: Self) -> Self::Output {
-        let mut out = self.clone();
-        out += other;
-
-        // return
-        out
     }
 }
 
@@ -439,10 +383,11 @@ impl<F: Field> MulAssign<Term<F>> for Polynomial<F> {
     }
 }
 
-impl<F: Field> Mul<&Term<F>> for Polynomial<F> {
-    type Output = Self;
+#[binop(refs_clone)]
+impl<F: Field> Mul<Term<F>> for Polynomial<F> {
+    type Output = Polynomial<F>;
 
-    fn mul(mut self, rhs: &Term<F>) -> Self::Output {
+    fn mul(mut self, rhs: Term<F>) -> Self::Output {
         self *= rhs;
 
         // return
@@ -450,47 +395,16 @@ impl<F: Field> Mul<&Term<F>> for Polynomial<F> {
     }
 }
 
-impl<F: Field> Mul<Term<F>> for Polynomial<F> {
-    type Output = Self;
-
-    fn mul(self, rhs: Term<F>) -> Self::Output {
-        self * &rhs
-    }
-}
-
-impl<F: Field> Mul<&Term<F>> for &Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    fn mul(self, rhs: &Term<F>) -> Self::Output {
-        self.clone() * rhs
-    }
-}
-
-impl<F: Field> Mul<Term<F>> for &Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    fn mul(self, rhs: Term<F>) -> Self::Output {
-        self * &rhs
-    }
-}
-
+#[binop(derefs)]
 impl<F: Field> Mul for &Polynomial<F> {
     type Output = Polynomial<F>;
 
     #[allow(clippy::suspicious_arithmetic_impl)]
-    fn mul(self, other: Self) -> Self::Output {
+    fn mul(self, other: &Polynomial<F>) -> Self::Output {
         other
             .terms
             .iter()
             .fold(Polynomial::zero(), |acc, t| acc + self * t)
-    }
-}
-
-impl<F: Field> Mul for Polynomial<F> {
-    type Output = Self;
-
-    fn mul(self, other: Self) -> Self::Output {
-        &self * &other
     }
 }
 

@@ -75,6 +75,7 @@ macro_rules! impl_op_for_mdeg_componentwise {
             }
         }
 
+        
         impl<const N: usize> $trait for MDeg<N> {
             type Output = Self;
             #[inline]
