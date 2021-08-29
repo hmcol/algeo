@@ -31,6 +31,24 @@ impl<F: Field> Mat<F> {
 		)
 	}
 
+	pub fn from_col_vectors(vs: &[Mat<F>]) -> Mat<F>{
+		Mat::new(vs[0].rows(), vs.len(),
+			get_box_iter(vs[0].rows(), vs.len())
+			.map(|(r,c)|
+				vs[c][(r,0)]
+			).collect()
+		)
+	}
+
+	pub fn from_row_vectors(vs: &[Mat<F>]) -> Mat<F>{
+		Mat::new(vs.len(), vs[0].rows(),
+			get_box_iter(vs.len(), vs[0].rows())
+			.map(|(r,c)|
+				vs[r][(c,0)]
+			).collect()
+		)
+	}
+
 	/// `k`th standard basis vector of dimension `n`
 	pub fn e(k: usize, n:usize) -> Mat<F> {
 		Mat::new(n,1,
