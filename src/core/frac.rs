@@ -6,8 +6,8 @@ pub type I = i64;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Frac {
-    numer: I,
-    denom: I,
+    pub numer: I,
+    pub denom: I,
 }
 
 impl Frac {

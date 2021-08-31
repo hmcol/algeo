@@ -2,7 +2,7 @@ use std::ops::{Add, AddAssign, Mul, MulAssign, Index};
 use std::cmp::Ordering;
 use std::fmt::{self, Write};
 
-use super::num::*;
+use crate::core::num::*;
 
 
 // macros stolen from rust source
