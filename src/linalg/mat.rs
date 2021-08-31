@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use super::super::num::{Field, EpsilonEquality};
+use crate::core::num::{Field, EpsilonEquality};
 use super::util::get_box_iter;
 use std::ops::{Add, Mul, Index, IndexMut};
 use std::fmt;
@@ -348,7 +348,7 @@ impl<F: Field+EpsilonEquality> EpsilonEquality for Mat<F> {
 
 #[cfg(test)]
 mod tests{
-	use super::super::super::frac::Frac;
+	use crate::core::frac::Frac;
 	use super::Mat;
 
 	#[test]

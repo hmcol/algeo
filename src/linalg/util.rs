@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use crate::lib::num::Field;
+use crate::core::num::Field;
 
 use super::mat::Mat;
 

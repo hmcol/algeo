@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::lib::num::{EpsilonEquality, Field, StabilityCmp};
+use crate::core::num::{EpsilonEquality, Field, StabilityCmp};
 
 
 use super::mat::Mat;

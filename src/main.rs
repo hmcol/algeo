@@ -1,9 +1,7 @@
 
-mod lib;
-use lib::poly::*;
-use lib::linalg::mat::Mat;
-//use lib::linalg::row_echelon::*;
-
+use algeo::poly::poly::*;
+use algeo::linalg::mat::Mat;
+//use algeo::linalg::row_echelon::*;
 
 fn main() {
     let x = Term::monic(MDeg([1, 0]));

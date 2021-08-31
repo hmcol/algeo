@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use super::super::num::{Field, StabilityCmp, EpsilonEquality};
+use crate::core::num::{Field, StabilityCmp, EpsilonEquality};
 use super::mat::Mat;
 use super::util::get_max_index;
 
@@ -322,11 +322,11 @@ impl<'a, F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<'a, F>
 
 #[cfg(test)]
 mod tests {
-	use crate::lib::linalg::util::mat_iterator;
-	use crate::lib::num::Field;
+	use crate::linalg::util::mat_iterator;
+	use crate::core::num::Field;
 
 	use super::Mat;
-	use super::super::super::num::EpsilonEquality;
+	use crate::core::num::EpsilonEquality;
 
 	#[test]
 	fn test_lu() {
