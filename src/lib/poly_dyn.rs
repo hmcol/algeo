@@ -1,15 +1,14 @@
-use std::cmp::Ordering;
-use std::fmt::{self, Write};
-use std::ops::{Add, AddAssign, Div, DivAssign, Index, Mul, MulAssign, Sub, SubAssign};
-
+use std::fmt;
+use std::ops::{Add, AddAssign, Mul, MulAssign};
 use std::collections::BTreeMap;
-use std::iter::FromIterator;
+
 
 use xops::binop;
 
 use super::num::*;
 
-// multidegree -----------------------------------------------------------------
+
+// structs ---------------------------------------------------------------------
 
 /// type for indexing the indeterminates
 type I = u8;
@@ -21,6 +20,21 @@ type D = i8;
 /// multivariate polynomial ring
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct MDeg(pub BTreeMap<I, D>);
+
+
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct Term<F: Field> {
+    coef: F,
+    mdeg: MDeg,
+}
+
+/// a polynomial with coefficients in the field F
+#[derive(Clone, Debug, Hash)]
+pub struct Polynomial<F: Field> {
+    terms: Vec<Term<F>>,
+}
+
+// implementations -------------------------------------------------------------
 
 impl MDeg {
     /// returns the empty multidegree
@@ -100,50 +114,6 @@ impl MDeg {
     }
 }
 
-impl AddAssign<&Self> for MDeg {
-    fn add_assign(&mut self, other: &Self) {
-        for (&idx, &other_deg) in other.degs() {
-            if let Some(self_deg_ref) = self.0.get_mut(&idx) {
-                *self_deg_ref += other_deg;
-            } else {
-                self.0.insert(idx, other_deg);
-            }
-        }
-    }
-}
-
-impl AddAssign for MDeg {
-    fn add_assign(&mut self, other: Self) {
-        *self += &other;
-    }
-}
-
-#[binop(refs_clone)]
-impl Add for MDeg {
-    type Output = MDeg;
-
-    fn add(mut self, other: Self) -> Self::Output {
-        self += other;
-
-        // return
-        self
-    }
-}
-
-impl fmt::Display for MDeg {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MDeg{:?}", self.0)
-    }
-}
-
-// term ------------------------------------------------------------------------
-
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub struct Term<F: Field> {
-    coef: F,
-    mdeg: MDeg,
-}
-
 impl<F: Field> Term<F> {
     /// returns the term with the given coefficient and multidegree
     ///
@@ -216,51 +186,6 @@ impl<F: Field> Term<F> {
     }
 }
 
-/// the following multiplication operations are implemented:
-///
-/// term *= {&term, term}
-/// term * term
-/// &term * &term
-
-impl<F: Field> MulAssign<&Self> for Term<F> {
-    fn mul_assign(&mut self, other: &Self) {
-        self.coef *= other.coef;
-        self.mdeg += &other.mdeg;
-    }
-}
-
-impl<F: Field> MulAssign for Term<F> {
-    fn mul_assign(&mut self, other: Self) {
-        *self *= &other;
-    }
-}
-
-#[binop(refs_clone)]
-impl<F: Field> Mul for Term<F> {
-    type Output = Term<F>;
-
-    fn mul(mut self, other: Self) -> Self::Output {
-        self *= other;
-
-        // return
-        self
-    }
-}
-
-impl<F: Field> fmt::Display for Term<F> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}·X{:?}", self.coef, self.mdeg.0)
-    }
-}
-
-// polynomial ------------------------------------------------------------------
-
-/// a polynomial over N variables with coefficients in the field F
-#[derive(Clone, Debug, Hash)]
-pub struct Polynomial<F: Field> {
-    terms: Vec<Term<F>>,
-}
-
 impl<F: Field> Polynomial<F> {
     pub fn from_vec(v: Vec<Term<F>>) -> Self {
         Polynomial { terms: v }
@@ -297,14 +222,63 @@ impl<F: Field> Polynomial<F> {
     }
 }
 
-/// the following addition operations are implemented:
-///
-/// poly += {&term, term}
-/// poly + {&term, term}
-/// &poly + {&term, term}
-/// poly += {&poly, poly}
-/// poly + poly
-/// &poly + &poly
+// operations ------------------------------------------------------------------
+
+
+impl AddAssign<&Self> for MDeg {
+    fn add_assign(&mut self, other: &Self) {
+        for (&idx, &other_deg) in other.degs() {
+            if let Some(self_deg_ref) = self.0.get_mut(&idx) {
+                *self_deg_ref += other_deg;
+            } else {
+                self.0.insert(idx, other_deg);
+            }
+        }
+    }
+}
+
+impl AddAssign for MDeg {
+    fn add_assign(&mut self, other: Self) {
+        *self += &other;
+    }
+}
+
+#[binop(refs_clone)]
+impl Add for MDeg {
+    type Output = MDeg;
+
+    fn add(mut self, other: Self) -> Self::Output {
+        self += other;
+
+        // return
+        self
+    }
+}
+
+impl<F: Field> MulAssign<&Self> for Term<F> {
+    fn mul_assign(&mut self, other: &Self) {
+        self.coef *= other.coef;
+        self.mdeg += &other.mdeg;
+    }
+}
+
+impl<F: Field> MulAssign for Term<F> {
+    fn mul_assign(&mut self, other: Self) {
+        *self *= &other;
+    }
+}
+
+#[binop(refs_clone)]
+impl<F: Field> Mul for Term<F> {
+    type Output = Term<F>;
+
+    fn mul(mut self, other: Self) -> Self::Output {
+        self *= other;
+
+        // return
+        self
+    }
+}
 
 impl<F: Field> AddAssign<&Term<F>> for Polynomial<F> {
     fn add_assign(&mut self, rhs: &Term<F>) {
@@ -362,13 +336,6 @@ impl<F: Field> Add for Polynomial<F> {
     }
 }
 
-/// the following multiplication operations are implemented:
-///
-/// poly *= {&term, term}
-/// {&poly, poly} * {&term, term}
-/// &poly * &poly
-/// poly * poly
-
 impl<F: Field> MulAssign<&Term<F>> for Polynomial<F> {
     fn mul_assign(&mut self, rhs: &Term<F>) {
         for term_ref in self.terms.iter_mut() {
@@ -405,6 +372,35 @@ impl<F: Field> Mul for &Polynomial<F> {
             .terms
             .iter()
             .fold(Polynomial::zero(), |acc, t| acc + self * t)
+    }
+}
+
+// shorthands ------------------------------------------------------------------
+
+pub fn x<F: Field>(deg: D) -> Term<F> {
+    Term::var(0, deg)
+}
+
+pub fn y<F: Field>(deg: D) -> Term<F> {
+    Term::var(1, deg)
+}
+
+pub fn z<F: Field>(deg: D) -> Term<F> {
+    Term::var(0, deg)
+}
+
+
+// display ---------------------------------------------------------------------
+
+impl fmt::Display for MDeg {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "MDeg{:?}", self.0)
+    }
+}
+
+impl<F: Field> fmt::Display for Term<F> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}·X{:?}", self.coef, self.mdeg.0)
     }
 }
 
