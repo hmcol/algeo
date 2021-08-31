@@ -6,6 +6,7 @@ version = 3
 name = "algeo"
 version = "0.1.0"
 dependencies = [
+ "itertools",
  "xops",
 ]
 
@@ -45,6 +46,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "either"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -57,10 +64,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
-name = "proc-macro2"
-version = "1.0.28"
+name = "itertools"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c7ed8b8c7b886ea3ed7dde405212185f423ab44682667c8c6dd14aa1d9f6612"
+checksum = "69ddb889f9d0d08a67338271fa9b62996bc788c7796a5c18cf057420aaed5eaf"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "proc-macro2"
+version = "1.0.29"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9f5105d4fdaab20335ca9565e106a5d9b82b6219b5ba735731124ac6711d23d"
 dependencies = [
  "unicode-xid",
 ]
@@ -100,6 +116,7 @@ checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
 [[package]]
 name = "xops"
 version = "0.1.0"
+source = "git+https://github.com/hmcol/xops#fb698b03ab2be452bad60519e97ebfaf56148bf1"
 dependencies = [
  "xops_macros",
 ]
@@ -107,6 +124,7 @@ dependencies = [
 [[package]]
 name = "xops_core"
 version = "0.1.0"
+source = "git+https://github.com/hmcol/xops#fb698b03ab2be452bad60519e97ebfaf56148bf1"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -117,6 +135,7 @@ dependencies = [
 [[package]]
 name = "xops_macros"
 version = "0.1.0"
+source = "git+https://github.com/hmcol/xops#fb698b03ab2be452bad60519e97ebfaf56148bf1"
 dependencies = [
  "darling",
  "proc-macro2",

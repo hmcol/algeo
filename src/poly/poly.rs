@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use xops::binop;
 
-use super::num::*;
+use crate::core::num::*;
 
 
 // structs ---------------------------------------------------------------------
@@ -119,7 +119,7 @@ impl<F: Field> Term<F> {
     ///
     /// this is the most basic way one should create a new term struct. the
     /// current implementation is rather simply
-    /// ```
+    /// ```ignore
     /// {
     ///    Term { coef, mdeg }
     /// }
