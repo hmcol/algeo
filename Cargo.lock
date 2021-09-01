@@ -116,7 +116,8 @@ checksum = "8ccb82d61f80a663efe1f787a51b16b5a51e3314d6ac365b08639f52387b33f3"
 [[package]]
 name = "xops"
 version = "0.1.0"
-source = "git+https://github.com/hmcol/xops#fb698b03ab2be452bad60519e97ebfaf56148bf1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ddbfcbf3e87ce78f163abf297d417a8d1592440628bbec2297adc91d7a7832d"
 dependencies = [
  "xops_macros",
 ]
@@ -124,7 +125,8 @@ dependencies = [
 [[package]]
 name = "xops_core"
 version = "0.1.0"
-source = "git+https://github.com/hmcol/xops#fb698b03ab2be452bad60519e97ebfaf56148bf1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79f8ecdf6b21364f65d96477c5689f761c263607d6aa9f9a9948f64ee1e0697e"
 dependencies = [
  "darling",
  "proc-macro2",
@@ -135,7 +137,8 @@ dependencies = [
 [[package]]
 name = "xops_macros"
 version = "0.1.0"
-source = "git+https://github.com/hmcol/xops#fb698b03ab2be452bad60519e97ebfaf56148bf1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a939b1ccd4d34591a46ea11304779485cd69304fc97ebbb35b5f83366f26230d"
 dependencies = [
  "darling",
  "proc-macro2",
