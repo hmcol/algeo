@@ -1,3 +1,4 @@
+use std::iter::{Product, Sum};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 use std::cmp::Ordering;
 
@@ -12,11 +13,13 @@ pub trait Zero: Sized + Add<Self, Output = Self> {
 }
 
 macro_rules! int_zero_impl {
-    ($($t:ty)*) => ($(
-        impl Zero for $t {
-            const ZERO: Self = 0 as Self;
-        }
-    )*)
+    ($($t:ty)*) => {
+        $(
+            impl Zero for $t {
+                const ZERO: Self = 0 as Self;
+            }
+        )*
+    }
 }
 
 int_zero_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
@@ -33,11 +36,13 @@ pub trait One: Sized + Mul {
 }
 
 macro_rules! one_impl {
-    ($($t:ty)*) => ($(
-        impl One for $t {
-            const ONE: Self = 1 as Self;
-        }
-    )*)
+    ($($t:ty)*) => {
+        $(
+            impl One for $t {
+                const ONE: Self = 1 as Self;
+            }
+        )*
+    }
 }
 
 one_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
@@ -54,10 +59,10 @@ pub trait Field:
     + std::fmt::Debug
     + std::fmt::Display
     + PartialEq
-    + Add<Self, Output = Self> + AddAssign<Self>
+    + Add<Self, Output = Self> + AddAssign<Self> + Sum
     + Sub<Self, Output = Self> + SubAssign<Self>
     + Zero
-    + Mul<Self, Output = Self> + MulAssign<Self>
+    + Mul<Self, Output = Self> + MulAssign<Self> + Product
     + Div<Self, Output = Self> + DivAssign<Self>
     + One
 {
@@ -65,13 +70,15 @@ pub trait Field:
 }
 
 macro_rules! field_impl {
-    ($($t:ty)*) => ($(
-        impl Field for $t {
-            fn powi32(&self, p: i32) -> Self {
-                self.powi(p)
+    ($($t:ty)*) => {
+        $(
+            impl Field for $t {
+                fn powi32(&self, p: i32) -> Self {
+                    self.powi(p)
+                }
             }
-        }
-    )*)
+        )*
+    }
 }
 
 field_impl! { f32 f64 Frac }
@@ -83,13 +90,15 @@ pub trait EpsilonEquality {
 }
 
 macro_rules! epsilon_equality_impl {
-    ($($t:ty)*) => ($(
-        impl EpsilonEquality for $t {
-            fn epsilon_equals(&self, other: &Self) -> bool {
-                (self-other).abs() < <$t>::EPSILON
+    ($($t:ty)*) => {
+        $(
+            impl EpsilonEquality for $t {
+                fn epsilon_equals(&self, other: &Self) -> bool {
+                    <$t>::abs(self - other) < <$t>::EPSILON
+                }
             }
-        }
-    )*)
+        )*
+    }
 }
 
 epsilon_equality_impl! { f32 f64 }
@@ -115,13 +124,15 @@ pub trait StabilityCmp {
 }
 
 macro_rules! stability_cmp_impl {
-    ($($t:ty)*) => ($(
-        impl StabilityCmp for $t {
-            fn stability_cmp(&self, other: &Self) -> Option<Ordering> {
-                self.abs().partial_cmp(&other.abs())
+    ($($t:ty)*) => {
+        $(
+            impl StabilityCmp for $t {
+                fn stability_cmp(&self, other: &Self) -> Option<Ordering> {
+                    self.abs().partial_cmp(&other.abs())
+                }
             }
-        }
-    )*)
+        )*
+    }
 }
 
 stability_cmp_impl! { f32 f64 }
@@ -138,8 +149,8 @@ impl StabilityCmp for Frac {
         } else if *other == Frac::ZERO {
             Some(Ordering::Greater)
         } else {
-            (other.numer.abs()+other.denom.abs())
-                .partial_cmp(&(self.numer.abs()+self.denom.abs()))
+            (other.numer.abs() + other.denom.abs())
+                .partial_cmp(&(self.numer.abs() + self.denom.abs()))
         }
     }
 }
@@ -152,6 +163,6 @@ impl PartialOrd for Frac {
 
 impl Ord for Frac {
     fn cmp(&self, other: &Self) -> Ordering {
-        (self.numer*other.denom).cmp(&(other.numer*self.denom))
+        (self.numer * other.denom).cmp(&(other.numer * self.denom))
     }
 }

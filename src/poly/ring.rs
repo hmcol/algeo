@@ -1,12 +1,10 @@
+use std::collections::{btree_map, BTreeMap};
 use std::fmt;
-use std::ops::{Add, AddAssign, Mul, MulAssign};
-use std::collections::BTreeMap;
-
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub};
 
 use xops::binop;
 
 use crate::core::num::*;
-
 
 // structs ---------------------------------------------------------------------
 
@@ -16,11 +14,16 @@ type I = u8;
 /// type of the degrees in a multidegree
 type D = i8;
 
+/// Wrapper for constant values in the field `F`.
+///
+/// Maybe for implementing operations between all the types of elements in the polynomial ring `F[X]`, namely constants (here), terms, and polynomials.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Const<F>(F);
+
 /// wrapper for `Vec<P>` to represent multidegree of monomial terms in a
 /// multivariate polynomial ring
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct MDeg(pub BTreeMap<I, D>);
-
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Term<F: Field> {
@@ -32,6 +35,13 @@ pub struct Term<F: Field> {
 #[derive(Clone, Debug, Hash)]
 pub struct Polynomial<F: Field> {
     terms: Vec<Term<F>>,
+}
+
+/// possible way to handle interoperability between different types of elements in `F[X]`
+enum _Ring<F: Field> {
+    Const(F),
+    Term(Term<F>),
+    Poly(Polynomial<F>),
 }
 
 // implementations -------------------------------------------------------------
@@ -60,7 +70,7 @@ impl MDeg {
     }
 
     /// returns the multidegree corresponding the the given slice of tuples
-    /// 
+    ///
     /// if `tuples` contains the pair `(i, d)`, then the resulting multidegree
     /// will have the entry `i: d`
     ///
@@ -75,12 +85,12 @@ impl MDeg {
                 .iter()
                 .copied()
                 .filter(|&(_, deg)| deg != 0i8)
-                .collect()
+                .collect(),
         )
     }
 
     /// returns the multidegree with the sole entry `idx: deg`
-    /// 
+    ///
     /// can be used for representing variables/indeterminates:
     /// - the multidegree of `x = x_0` is taken to be `{0: 1}`
     /// - the multidegree of `y = x_1` is taken to be `{1: 1}`
@@ -90,12 +100,12 @@ impl MDeg {
     }
 
     /// returns iterator over the individual degree components
-    pub fn degs(&self) -> impl Iterator<Item = (&I, &D)> {
+    pub fn degs(&self) -> btree_map::Iter<I, D> {
         self.0.iter()
     }
 
     /// returns mutable iterator over the individual degree components
-    pub fn degs_mut(&mut self) -> impl Iterator<Item = (&I, &mut D)> {
+    pub fn degs_mut(&mut self) -> btree_map::IterMut<I, D> {
         self.0.iter_mut()
     }
 
@@ -110,7 +120,7 @@ impl MDeg {
     /// in other words, this is the minimum value `n` for which we would
     /// consider `self` to be an element of the polynomial ring in `n` variables
     pub fn max_idx(&self) -> I {
-        *self.0.keys().max().unwrap_or(&0)
+        self.0.keys().copied().max().unwrap_or(0)
     }
 }
 
@@ -132,7 +142,7 @@ impl<F: Field> Term<F> {
     }
 
     /// returns a term with the given coefficient and multidegree `MDeg::0`
-    /// 
+    ///
     /// this is used for interpreting elements of the field as possible terms
     /// in polynomials over the field
     pub fn constant(coef: F) -> Self {
@@ -140,7 +150,7 @@ impl<F: Field> Term<F> {
     }
 
     /// returns the constant term zero: `Term { coef: 0, mdeg: 0 }`  
-    /// 
+    ///
     /// this is a bit sketchy since the zero of the polynomial ring is
     /// typically not assigned a multidegree
     ///
@@ -151,7 +161,7 @@ impl<F: Field> Term<F> {
         Term::constant(F::ZERO)
     }
 
-    /// returns the constant term one: `Term { coef: 1, mdeg: 0 }` 
+    /// returns the constant term one: `Term { coef: 1, mdeg: 0 }`
     pub fn one() -> Self {
         Term::constant(F::ONE)
     }
@@ -176,13 +186,16 @@ impl<F: Field> Term<F> {
     /// under this function is returned
     pub fn eval(&self, x: &[F]) -> F {
         if x.len() < self.mdeg.max_idx().into() {
-            panic!("incorrectly sized argument {:?} passed to term {:?}", x, self);
+            panic!(
+                "incorrectly sized argument {:?} passed to term {:?}",
+                x, self
+            );
         }
 
         self.mdeg
             .degs()
-            .map(|(&idx, &deg)| x[idx as usize].powi32(deg.into()))
-            .fold(self.coef, |acc, x| acc * x)
+            .map(|(&idx, &deg)| x[usize::from(idx)].powi32(deg.into()))
+            .fold(self.coef, Mul::mul)
     }
 }
 
@@ -210,157 +223,170 @@ impl<F: Field> Polynomial<F> {
         self.terms.len()
     }
 
-    pub fn iter_terms(&self) -> impl Iterator<Item = &Term<F>> {
+    pub fn terms(&self) -> std::slice::Iter<Term<F>> {
         self.terms.iter()
     }
 
+    pub fn terms_mut(&mut self) -> std::slice::IterMut<Term<F>> {
+        self.terms.iter_mut()
+    }
+
     pub fn eval(&self, x: &[F]) -> F {
-        self.terms
-            .iter()
-            .map(|t| t.eval(x))
-            .fold(F::ZERO, |acc, y| acc + y) // should impl Sum for Field
+        self.terms().map(|t| t.eval(x)).sum()
     }
 }
 
 // operations ------------------------------------------------------------------
 
+/* impl<F: Field> From<F> for Const<F> {
+    fn from(coef: F) -> Self {
+        Const(coef)
+    }
+} */
 
-impl AddAssign<&Self> for MDeg {
-    fn add_assign(&mut self, other: &Self) {
-        for (&idx, &other_deg) in other.degs() {
-            if let Some(self_deg_ref) = self.0.get_mut(&idx) {
-                *self_deg_ref += other_deg;
+/* impl<F: Field> From<F> for Term<F> {
+    fn from(coef: F) -> Self {
+        Term::constant(coef)
+    }
+}
+
+impl<F: Field> From<Term<F>> for Polynomial<F> {
+    fn from(term: Term<F>) -> Self {
+        Polynomial::monomial(term)
+    }
+}
+
+impl<F: Field> From<F> for Polynomial<F> {
+    fn from(coef: F) -> Self {
+        Polynomial::from(Term::from(coef))
+    }
+} */
+
+/* impl<F: Field> IntoIterator for Polynomial<F> {
+    type Item = Term<F>;
+
+    type IntoIter = <Vec<Term<F>> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.terms.into_iter()
+    }
+} */
+
+/* macro_rules! const_newtype_ops {
+    (@single $Trait:ident $fn_:ident) => {
+        #[binop(refs_clone)]
+        impl<F: Field> $Trait for Const<F> {
+            type Output = Const<F>;
+
+            #[inline]
+            fn $fn_(self, rhs: Const<F>) -> Self::Output {
+                Const(self.0.$fn_(rhs.0))
+            }
+        }
+    };
+    ($($Trait:ident $fn_:ident),*) => {
+        $(
+            const_newtype_ops! { @single $Trait $fn_ }
+        )*
+    }
+}
+
+const_newtype_ops! { Add add, Sub sub, Mul mul, Div div } */
+
+/* #[binop(commute, refs_clone)]
+impl<F: Field> Mul<Term<F>> for Const<F> {
+    type Output = Term<F>;
+
+    fn mul(self, rhs: Term<F>) -> Self::Output {
+        Term::from(self.0) * rhs
+    }
+} */
+
+macro_rules! easy_ass {
+    (@internal
+        $TraitAss:ident $fn_ass:ident
+        $Trait:ident $fn_:ident
+        $(, $arg:ident)*
+        for $Lhs:ty, $Rhs:ty
+        $(where $($gens:tt)* )?
+    ) => {
+        impl$(< $($gens)* >)? $TraitAss<$Rhs> for $Lhs {
+            fn $fn_ass(&mut self, rhs: $Rhs) {
+                self.$fn_ass(&rhs);
+            }
+        }
+        #[binop($($arg),*)]
+        impl $(< $($gens)* >)? $Trait<$Rhs> for $Lhs {
+            type Output = $Lhs;
+
+            fn $fn_(mut self, rhs: $Rhs) -> Self::Output {
+                self.$fn_ass(rhs);
+
+                // return
+                self
+            }
+        }
+    };
+    ($Lhs:ty [+ $(,$arg:ident)*] $($t:tt)*) => {
+        easy_ass! { @internal AddAssign add_assign Add add $(,$arg)* for $Lhs, $($t)* }
+    };
+    ($Lhs:ty [* $(,$arg:ident)*] $($t:tt)*) => {
+        easy_ass! { @internal MulAssign mul_assign Mul mul $(,$arg)* for $Lhs, $($t)* }
+    };
+}
+
+impl AddAssign<&MDeg> for MDeg {
+    fn add_assign(&mut self, rhs: &MDeg) {
+        for (&idx, &deg) in rhs.degs() {
+            if let Some(self_deg) = self.0.get_mut(&idx) {
+                self_deg.add_assign(deg);
             } else {
-                self.0.insert(idx, other_deg);
+                self.0.insert(idx, deg);
             }
         }
     }
 }
+easy_ass! { MDeg [+, refs_clone] MDeg }
 
-impl AddAssign for MDeg {
-    fn add_assign(&mut self, other: Self) {
-        *self += &other;
+impl<F: Field> MulAssign<&Term<F>> for Term<F> {
+    fn mul_assign(&mut self, rhs: &Term<F>) {
+        self.coef *= rhs.coef;
+        self.mdeg += &rhs.mdeg;
     }
 }
-
-#[binop(refs_clone)]
-impl Add for MDeg {
-    type Output = MDeg;
-
-    fn add(mut self, other: Self) -> Self::Output {
-        self += other;
-
-        // return
-        self
-    }
-}
-
-impl<F: Field> MulAssign<&Self> for Term<F> {
-    fn mul_assign(&mut self, other: &Self) {
-        self.coef *= other.coef;
-        self.mdeg += &other.mdeg;
-    }
-}
-
-impl<F: Field> MulAssign for Term<F> {
-    fn mul_assign(&mut self, other: Self) {
-        *self *= &other;
-    }
-}
-
-#[binop(refs_clone)]
-impl<F: Field> Mul for Term<F> {
-    type Output = Term<F>;
-
-    fn mul(mut self, other: Self) -> Self::Output {
-        self *= other;
-
-        // return
-        self
-    }
-}
+easy_ass! { Term<F> [*, refs_clone] Term<F> where F: Field }
 
 impl<F: Field> AddAssign<&Term<F>> for Polynomial<F> {
     fn add_assign(&mut self, rhs: &Term<F>) {
-        if let Some(term_ref) = self.terms.iter_mut().find(|t| t.mdeg == rhs.mdeg) {
-            term_ref.coef += rhs.coef; // consider adding checks for zero coef
+        if let Some(t) = self.terms_mut().find(|t| t.mdeg == rhs.mdeg) {
+            t.coef += rhs.coef; // consider adding checks for zero coef
         } else {
             self.terms.push(rhs.clone());
         }
     }
 }
 
-impl<F: Field> AddAssign<Term<F>> for Polynomial<F> {
-    fn add_assign(&mut self, rhs: Term<F>) {
-        *self += &rhs;
-    }
-}
+easy_ass! { Polynomial<F> [+, refs_clone, commute] Term<F> where F: Field }
 
-#[binop(commute, refs_clone)]
-impl<F: Field> Add<Term<F>> for Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    fn add(mut self, rhs: Term<F>) -> Self::Output {
-        self += rhs;
-
-        // return
-        self
-    }
-}
-
-impl<F: Field> AddAssign for Polynomial<F> {
-    fn add_assign(&mut self, other: Self) {
-        for t in other.terms {
-            *self += t
+impl<F: Field> AddAssign<&Polynomial<F>> for Polynomial<F> {
+    fn add_assign(&mut self, rhs: &Polynomial<F>) {
+        for term in rhs.terms() {
+            self.add_assign(term);
         }
     }
 }
 
-impl<F: Field> AddAssign<&Self> for Polynomial<F> {
-    fn add_assign(&mut self, other: &Self) {
-        for t in other.iter_terms() {
-            *self += t;
-        }
-    }
-}
-
-#[binop(refs_clone)]
-impl<F: Field> Add for Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    fn add(mut self, other: Self) -> Self::Output {
-        self += other;
-
-        // return
-        self
-    }
-}
+easy_ass! { Polynomial<F> [+, refs_clone] Polynomial<F> where F: Field }
 
 impl<F: Field> MulAssign<&Term<F>> for Polynomial<F> {
     fn mul_assign(&mut self, rhs: &Term<F>) {
-        for term_ref in self.terms.iter_mut() {
-            *term_ref *= rhs;
+        for term in self.terms_mut() {
+            term.mul_assign(rhs);
         }
     }
 }
 
-impl<F: Field> MulAssign<Term<F>> for Polynomial<F> {
-    fn mul_assign(&mut self, rhs: Term<F>) {
-        *self *= &rhs;
-    }
-}
-
-#[binop(refs_clone)]
-impl<F: Field> Mul<Term<F>> for Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    fn mul(mut self, rhs: Term<F>) -> Self::Output {
-        self *= rhs;
-
-        // return
-        self
-    }
-}
+easy_ass! { Polynomial<F> [*, refs_clone, commute] Term<F> where F: Field }
 
 #[binop(derefs)]
 impl<F: Field> Mul for &Polynomial<F> {
@@ -377,24 +403,53 @@ impl<F: Field> Mul for &Polynomial<F> {
 
 // shorthands ------------------------------------------------------------------
 
-pub fn x<F: Field>(deg: D) -> Term<F> {
-    Term::var(0, deg)
+macro_rules! var_fn {
+    (@with_doc $var:ident, $idx:literal, $doc_str:expr) => {
+        #[doc = $doc_str]
+        pub fn $var<F: Field>(deg: D) -> Term<F> {
+            Term::var($idx, deg)
+        }
+    };
+    (@doc_of $var:expr, $idx:expr) => {
+        concat!(
+            "Shorthand for `",
+            $var,
+            "`; i.e., the indeterminate of index `",
+            $idx,
+            "` in `F[X]`.\n\n",
+            "As a Term, `",
+            $var,
+            "(d)` is monic with multidegree `{ ",
+            $idx,
+            ": d }`.",
+            ""
+        )
+    };
+    ($var:ident -> $idx:literal) => {
+        var_fn! { @with_doc $var, $idx,
+            var_fn!(@doc_of stringify!($var), stringify!($idx))
+        }
+    };
 }
 
-pub fn y<F: Field>(deg: D) -> Term<F> {
-    Term::var(1, deg)
-}
-
-pub fn z<F: Field>(deg: D) -> Term<F> {
-    Term::var(0, deg)
-}
-
+var_fn! { x -> 0 }
+var_fn! { y -> 1 }
+var_fn! { z -> 2 }
+var_fn! { u -> 3 }
+var_fn! { v -> 4 }
+var_fn! { w -> 5 }
 
 // display ---------------------------------------------------------------------
 
 impl fmt::Display for MDeg {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "MDeg{:?}", self.0)
+    }
+}
+
+impl<F: Field> fmt::Display for Const<F> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
@@ -418,7 +473,7 @@ impl<F: Field> fmt::Display for Polynomial<F> {
             write!(f, " + {}", term)?;
         }
 
-        // return 
+        // return
         fmt::Result::Ok(())
     }
 }
@@ -450,14 +505,29 @@ mod tests {
         println!("\nc = {}", d);
 
         assert_eq!(a + b, c);
-
     }
+
+    /* #[test]
+    fn const_newtype() {
+        let a = Const(34.0);
+        let b = Const(13.0);
+
+        dbg!(a + b);
+        dbg!(a - b);
+        dbg!(a * b);
+        dbg!(a / b);
+
+        let u = &3u8;
+        let v = &2u8;
+
+        dbg!(u + v);
+    } */
 
     #[test]
     fn test_term() {
-        let x = &Term::<f64>::var(0, 1);
-        let y = &Term::<f64>::var(1, 1);
-        let z = &Term::<f64>::var(2, 1);
+        let x = x::<f64>(1);
+        let y = y::<f64>(1);
+        let z = z::<f64>(1);
 
         println!("x = {}", x);
         println!("y = {}", y);
@@ -467,7 +537,7 @@ mod tests {
 
         println!("\nt = x * y * z = {}", t);
 
-        let c = Term::constant(37.0);
+        let c = Const(37.0);
 
         println!("\nc = {}", c);
 
@@ -475,7 +545,6 @@ mod tests {
 
         println!("\nc^2 * t^2 = {}", d);
         println!("c^2 * t^2 = {:?}", d);
-
     }
 
     #[test]

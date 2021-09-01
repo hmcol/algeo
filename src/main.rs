@@ -1,6 +1,6 @@
 
-use algeo::poly::poly::*;
-use algeo::linalg::mat::Mat;
+use algeo::poly::*;
+// use algeo::linalg::mat::Mat;
 //use algeo::linalg::row_echelon::*;
 
 fn main() {
@@ -21,17 +21,17 @@ fn main() {
 
 
 
-    let mat : Mat<f32> = Mat::new(3, 4,
-        vec![
-            0.0, 0.0, 0.0, 1.0,
-            0.0, 0.0, 1.0, 0.0,
-            0.0, 0.0, 0.0, 0.0
-        ]
-    );
-    let lu = mat.lu();
-    println!("{}", lu.u);
-    println!("{}", lu.l);
-    println!("{}", lu.p);
+    // let mat : Mat<f32> = Mat::new(3, 4,
+    //     vec![
+    //         0.0, 0.0, 0.0, 1.0,
+    //         0.0, 0.0, 1.0, 0.0,
+    //         0.0, 0.0, 0.0, 0.0
+    //     ]
+    // );
+    // let lu = mat.lu();
+    // println!("{}", lu.u);
+    // println!("{}", lu.l);
+    // println!("{}", lu.p);
 
 	//println!("{:?}", mat.reduced_row_echelon().0);
 	//println!("{:?}", mat.compute_kernel());
