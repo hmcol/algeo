@@ -1,4 +1,7 @@
 # algeo: Algebra + Geometry
+[![Crate](https://img.shields.io/crates/v/algeo.svg)](https://crates.io/crates/algeo)
+[![API](https://docs.rs/algeo/badge.svg)](https://docs.rs/algeo)
+
 
 Rust crate for doing all sorts of math, with a focus towards computer algebra and algebraic geometry.
 
