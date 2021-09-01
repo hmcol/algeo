@@ -1,7 +1,6 @@
 use std::collections::{btree_map, BTreeMap};
 use std::fmt;
-use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub};
-
+use std::ops::{Add, AddAssign, Mul, MulAssign};
 use xops::binop;
 
 use crate::core::num::*;
@@ -54,21 +53,6 @@ impl MDeg {
         MDeg(BTreeMap::new())
     }
 
-    /// returns multidegree of all ones: `[1 ... 1]`
-    ///
-    /// used for the term `x_1` `x_2` \dots `x_n`, where each indeterminate
-    /// occurs as a factor exactly once
-    pub fn ones(n: I) -> Self {
-        Self::repeated(1, n)
-    }
-
-    /// returns the multidegree where each of `n` entries is `deg`.
-    ///
-    /// explicitly, `{0: deg, ..., n-1: deg}`.
-    fn repeated(deg: D, n: I) -> Self {
-        MDeg((0..n).map(|i| (i, deg)).collect())
-    }
-
     /// returns the multidegree corresponding the the given slice of tuples
     ///
     /// if `tuples` contains the pair `(i, d)`, then the resulting multidegree
@@ -79,7 +63,7 @@ impl MDeg {
     ///
     /// this should probably be expanded to take any iterator over tuples, and
     /// any public constructor should pass through this filter
-    pub fn from_tuples(tuples: &[(I, D)]) -> Self {
+    pub fn from_pairs(tuples: &[(I, D)]) -> Self {
         MDeg(
             tuples
                 .iter()
@@ -89,14 +73,29 @@ impl MDeg {
         )
     }
 
+    /// returns the multidegree where each of `n` entries is `deg`.
+    ///
+    /// explicitly, `{0: deg, ..., n-1: deg}`.
+    fn repeated(deg: D, n: I) -> Self {
+        MDeg((0..n).map(|i| (i, deg)).collect())
+    }
+
+    /// returns multidegree of all ones: `[1 ... 1]`
+    ///
+    /// used for the term `x_1` `x_2` \dots `x_n`, where each indeterminate
+    /// occurs as a factor exactly once
+    pub fn ones(n: I) -> Self {
+        Self::repeated(1, n)
+    }
+
     /// returns the multidegree with the sole entry `idx: deg`
     ///
     /// can be used for representing variables/indeterminates:
     /// - the multidegree of `x = x_0` is taken to be `{0: 1}`
     /// - the multidegree of `y = x_1` is taken to be `{1: 1}`
     /// - the multidegree of `z = x_2` is taken to be `{2: 1}`
-    pub fn single(idx: I, deg: D) -> Self {
-        MDeg::from_tuples(&[(idx, deg)])
+    pub fn var(idx: I, deg: D) -> Self {
+        MDeg::from_pairs(&[(idx, deg)])
     }
 
     /// returns iterator over the individual degree components
@@ -137,7 +136,7 @@ impl<F: Field> Term<F> {
     /// if, for some reason, term creation need be changed, this could help us
     /// ensure the change is uniform
     #[inline]
-    pub fn from_coef_mdeg(coef: F, mdeg: MDeg) -> Self {
+    pub fn new(coef: F, mdeg: MDeg) -> Self {
         Term { coef, mdeg }
     }
 
@@ -146,7 +145,7 @@ impl<F: Field> Term<F> {
     /// this is used for interpreting elements of the field as possible terms
     /// in polynomials over the field
     pub fn constant(coef: F) -> Self {
-        Term::from_coef_mdeg(coef, MDeg::zero())
+        Term::new(coef, MDeg::zero())
     }
 
     /// returns the constant term zero: `Term { coef: 0, mdeg: 0 }`  
@@ -168,7 +167,7 @@ impl<F: Field> Term<F> {
 
     /// returns the monic term of given multidegree: `Term { coef: 1, mdeg }`
     pub fn monic(mdeg: MDeg) -> Self {
-        Term::from_coef_mdeg(F::ONE, mdeg)
+        Term::new(F::ONE, mdeg)
     }
 
     /// returns a term representing a single variable/indeterminate:
@@ -177,13 +176,15 @@ impl<F: Field> Term<F> {
     /// - `var(2, k) = x_2^k = z^k`
     /// - `var(j, k) = x_j^k`
     pub fn var(idx: I, deg: D) -> Self {
-        Term::monic(MDeg::single(idx, deg))
+        Term::monic(MDeg::var(idx, deg))
     }
 
     /// maps the polynomial element `self =: f ∈ F[x_1, ..., x_n]` to the
     /// corresponding
     /// polynomial function `eval_f: F^n -> F`, and the image of `x ∈ F^n`
     /// under this function is returned
+    /// 
+    /// should be changed to return some form of `Result<F, EvaluationError>`
     pub fn eval(&self, x: &[F]) -> F {
         if x.len() < self.mdeg.max_idx().into() {
             panic!(
@@ -204,47 +205,50 @@ impl<F: Field> Polynomial<F> {
         Polynomial { terms: v }
     }
 
-    /// returns a polynomial with only the term `t`
-    pub fn monomial(t: Term<F>) -> Self {
-        Self::from_vec(vec![t])
-    }
-
     /// returns a polynomial with no terms
     pub fn zero() -> Self {
         Self::from_vec(Vec::new())
     }
 
-    /// returns the polynomial with only the single term `1`, which correctly has the degree `[0 ... 0]`
+    /// returns a polynomial with only the term `t`
+    pub fn monomial(t: Term<F>) -> Self {
+        Self::from_vec(vec![t])
+    }
+
+    /// returns the polynomial with only the constant term `1`
     pub fn one() -> Self {
         Self::monomial(Term::one())
     }
 
+    /// number of (nonzero) terms
     pub fn term_count(&self) -> usize {
         self.terms.len()
     }
 
+    /// Returns an iterator over (immutably) borrowed terms: `Item = &Term<F>`.
     pub fn terms(&self) -> std::slice::Iter<Term<F>> {
         self.terms.iter()
     }
 
+    /// Returns an iterator over mutably borrowed terms: `Item = &mut Term<F>`.
     pub fn terms_mut(&mut self) -> std::slice::IterMut<Term<F>> {
         self.terms.iter_mut()
     }
 
+    /// Evaluates `self` in `F[x_1, ..., x_n]` at the point `x` in `F^m`.
+    ///
+    /// # Panics
+    ///
+    /// Method panics if `m < n`, i.e., if `x` does not provide values up the
+    /// maximum index variable of `self`.
     pub fn eval(&self, x: &[F]) -> F {
         self.terms().map(|t| t.eval(x)).sum()
     }
 }
 
-// operations ------------------------------------------------------------------
+// conversions -----------------------------------------------------------------
 
-/* impl<F: Field> From<F> for Const<F> {
-    fn from(coef: F) -> Self {
-        Const(coef)
-    }
-} */
-
-/* impl<F: Field> From<F> for Term<F> {
+impl<F: Field> From<F> for Term<F> {
     fn from(coef: F) -> Self {
         Term::constant(coef)
     }
@@ -260,48 +264,13 @@ impl<F: Field> From<F> for Polynomial<F> {
     fn from(coef: F) -> Self {
         Polynomial::from(Term::from(coef))
     }
-} */
-
-/* impl<F: Field> IntoIterator for Polynomial<F> {
-    type Item = Term<F>;
-
-    type IntoIter = <Vec<Term<F>> as IntoIterator>::IntoIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.terms.into_iter()
-    }
-} */
-
-/* macro_rules! const_newtype_ops {
-    (@single $Trait:ident $fn_:ident) => {
-        #[binop(refs_clone)]
-        impl<F: Field> $Trait for Const<F> {
-            type Output = Const<F>;
-
-            #[inline]
-            fn $fn_(self, rhs: Const<F>) -> Self::Output {
-                Const(self.0.$fn_(rhs.0))
-            }
-        }
-    };
-    ($($Trait:ident $fn_:ident),*) => {
-        $(
-            const_newtype_ops! { @single $Trait $fn_ }
-        )*
-    }
 }
 
-const_newtype_ops! { Add add, Sub sub, Mul mul, Div div } */
+// operations ------------------------------------------------------------------
 
-/* #[binop(commute, refs_clone)]
-impl<F: Field> Mul<Term<F>> for Const<F> {
-    type Output = Term<F>;
-
-    fn mul(self, rhs: Term<F>) -> Self::Output {
-        Term::from(self.0) * rhs
-    }
-} */
-
+/// Given an implementation of `OpAssign<&B> for A`, this implements `OpAssign<B> for A` and `Op<B> for A`, with any specified arguments passed to `#[xops::binop(...)]`
+///
+/// this functionality will be moved to xops at some point
 macro_rules! easy_ass {
     (@internal
         $TraitAss:ident $fn_ass:ident
@@ -315,6 +284,7 @@ macro_rules! easy_ass {
                 self.$fn_ass(&rhs);
             }
         }
+
         #[binop($($arg),*)]
         impl $(< $($gens)* >)? $Trait<$Rhs> for $Lhs {
             type Output = $Lhs;
@@ -492,10 +462,10 @@ mod tests {
         println!("zero = {}", zero);
         println!("ones = {}", ones);
 
-        let a = MDeg::from_tuples(&[(0, 3), (3, 5), (4, 2)]);
-        let b = MDeg::from_tuples(&[(0, 1), (1, 2), (4, 1), (5, 2)]);
+        let a = MDeg::from_pairs(&[(0, 3), (3, 5), (4, 2)]);
+        let b = MDeg::from_pairs(&[(0, 1), (1, 2), (4, 1), (5, 2)]);
 
-        let c = MDeg::from_tuples(&[(0, 4), (1, 2), (3, 5), (4, 3), (5, 2)]);
+        let c = MDeg::from_pairs(&[(0, 4), (1, 2), (3, 5), (4, 3), (5, 2)]);
 
         println!("\na = {}", a);
         println!("b = {}", b);
@@ -506,22 +476,6 @@ mod tests {
 
         assert_eq!(a + b, c);
     }
-
-    /* #[test]
-    fn const_newtype() {
-        let a = Const(34.0);
-        let b = Const(13.0);
-
-        dbg!(a + b);
-        dbg!(a - b);
-        dbg!(a * b);
-        dbg!(a / b);
-
-        let u = &3u8;
-        let v = &2u8;
-
-        dbg!(u + v);
-    } */
 
     #[test]
     fn test_term() {
@@ -537,7 +491,7 @@ mod tests {
 
         println!("\nt = x * y * z = {}", t);
 
-        let c = Const(37.0);
+        let c = Term::from(37.0);
 
         println!("\nc = {}", c);
 
