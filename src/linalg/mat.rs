@@ -1,8 +1,9 @@
 use itertools::Itertools;
+use xops::binop;
 
 use crate::core::num::{Field, EpsilonEquality};
 use super::util::get_box_iter;
-use std::ops::{Add, Mul, Index, IndexMut};
+use std::ops::{Add, Index, IndexMut, Mul, MulAssign};
 use std::fmt;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -153,11 +154,6 @@ impl<F: Field> Mat<F> {
 		}
 	}
 
-	// TODO Refactor into MulAssign
-	pub fn scale(&mut self, scalar: F) {
-		self.entries.iter_mut().for_each(|x| *x = *x * scalar);
-	}
-
 	// Mat<F> getters (possibly mutable) ---------------------------------------
 
 	pub fn get_unchecked(&self, r: usize, c: usize) -> &F {
@@ -293,10 +289,11 @@ impl<F: Field> fmt::Display for Mat<F> {
     }
 }
 
+#[binop(derefs)]
 impl<F: Field> Add for &Mat<F> {
 	type Output = Mat<F>;
 
-	fn add(self, other: Self) -> Mat<F>{
+	fn add(self, other: &Mat<F>) -> Mat<F>{
 		if !(self.rows == other.rows && self.cols == other.cols) {
 			panic!("tried to add matrix with incompatible dimensions.")
 		}
@@ -307,6 +304,7 @@ impl<F: Field> Add for &Mat<F> {
 }
 
 // scalar multiplication
+#[binop(derefs)]
 impl<F: Field> Mul<F> for &Mat<F> {
 	type Output = Mat<F>;
 
@@ -317,10 +315,11 @@ impl<F: Field> Mul<F> for &Mat<F> {
 	}
 }
 
+#[binop(derefs)]
 impl<F: Field> Mul for &Mat<F> {
 	type Output = Mat<F>;
 	
-	fn mul(self, other: Self) -> Mat<F>{
+	fn mul(self, other: &Mat<F>) -> Mat<F>{
 		if self.cols != other.rows {
 			panic!("tried to multiply matrices with incompatible dimensions.")
 		}
@@ -333,6 +332,13 @@ impl<F: Field> Mul for &Mat<F> {
 				).collect()
 		)
 	}
+}
+
+impl<F: Field> MulAssign<F> for Mat<F> {
+
+    fn mul_assign(&mut self, scalar: F) {
+		self.entries.iter_mut().for_each(|x| *x *= scalar);
+    }
 }
 
 impl<F: Field+EpsilonEquality> EpsilonEquality for Mat<F> {

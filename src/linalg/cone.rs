@@ -62,7 +62,7 @@ impl<F: Field + StabilityCmp + EpsilonEquality + PartialOrd> Cone<F> {
 					_ => true
 				};
 				if !is_above {
-					normal.scale(F::ZERO-F::ONE);
+					normal *= F::ZERO - F::ONE;
 				}
 
 				// check that the remaining generators "are above" normal
