@@ -153,33 +153,37 @@ impl<F: Field+StabilityCmp+EpsilonEquality> Mat<F> {
 
 // Row Equivalent Forms --------------------------------------------------------
 
-/// Intended to be used as pair of invertible matrix `p` and row equivalent
-/// matrix `b` such that `p*a=b`. In the particular case that `b` is the
-/// identity, `p` is the inverse of `a`.
-pub trait RowEquivalentForm<F: Field + EpsilonEquality> {
-	fn p_mut(&mut self) -> &mut Mat<F>;
-	fn b_mut(&mut self) -> &mut Mat<F>;
+/// Pair of invertible matrix `p` and row equivalent matrix `b` such that
+/// `p*a=b`. In the particular case that `b` is the identity, `p` is the
+/// inverse of `a`.
+pub struct RowEquivalentForm<'a, F: Field> {
+	/// Inverible matrix `p` that transforms `original` to `b`.
+	p: Mat<F>,
+	/// Row-equivalent matrix `b`.
+	b: Mat<F>,
+	/// Reference to original matrix.
+	original: &'a Mat<F>
+}
 
-	fn p(&self) -> &Mat<F>;
-	fn b(&self) -> &Mat<F>;
+impl<'a, F: Field> RowEquivalentForm<'a, F> {
 
 	fn permute(&mut self, r1: usize, r2: usize){
-		self.p_mut().permute_rows(r1, r2);
-		self.b_mut().permute_rows(r1, r2);
+		self.p.permute_rows(r1, r2);
+		self.b.permute_rows(r1, r2);
 	}
 
 	fn scale(&mut self, r: usize, scalar: F){
-		self.p_mut().scale_row(r, scalar);
-		self.b_mut().scale_row(r, scalar);
+		self.p.scale_row(r, scalar);
+		self.b.scale_row(r, scalar);
 	}
 
 	/// Performs replacement operation to clear all entries in column under the
 	/// given row. Assumes `self[(r,c)] == F::ONE`.
 	fn replace_col_under_row(&mut self, r: usize, c: usize) {
-		for r2 in (r+1)..self.b_mut().rows() {
-			let scalar2 = self.b_mut()[(r2,c)];
-			self.p_mut().replace_row(r, r2, F::ZERO-scalar2);
-			self.b_mut().replace_row(r, r2, F::ZERO-scalar2);
+		for r2 in (r+1)..self.b.rows() {
+			let scalar2 = self.b[(r2,c)];
+			self.p.replace_row(r, r2, F::ZERO-scalar2);
+			self.b.replace_row(r, r2, F::ZERO-scalar2);
 		}
 	}
 
@@ -187,73 +191,36 @@ pub trait RowEquivalentForm<F: Field + EpsilonEquality> {
 	/// given row. Assumes `self[(r,c)] == F::ONE`.
 	fn replace_col_above_row(&mut self, r: usize, c: usize) {
 		for r2 in 0..r {
-			let scalar2 = self.b_mut()[(r2,c)];
-			self.p_mut().replace_row(r, r2, F::ZERO-scalar2);
-			self.b_mut().replace_row(r, r2, F::ZERO-scalar2);
+			let scalar2 = self.b[(r2,c)];
+			self.p.replace_row(r, r2, F::ZERO-scalar2);
+			self.b.replace_row(r, r2, F::ZERO-scalar2);
 		}
 	}
+}
+
+
+// Row Equivalent return types -------------------------------------------------
+// These types can only be constructed by methods guaranteeing that they satsify
+// good properties.
+
+pub struct RowEchelonForm<'a, F: Field + EpsilonEquality> {
+	form : RowEquivalentForm<'a, F>
+}
+
+impl<'a, F: Field + EpsilonEquality> RowEchelonForm<'a, F> {
 
 	/// Computes the nullity (dimension of the kernel)
-	fn nullity(&self) -> usize {
-		self.b().cols() - self.rank()
+	pub fn nullity(&self) -> usize {
+		self.form.b.cols() - self.rank()
 	}
 
 	/// Computes the rank (dimension of the range)
-	fn rank(&self) -> usize {
-		self.b().rows() - self.b().zero_rows()
-	}
-}
-
-
-/// Struct containing original matrix `original`, row echelon form `b`, and
-/// product of row operations `p`.
-pub struct RowEchelonForm<'a, F: Field + EpsilonEquality> {
-	pub p: Mat<F>,
-	pub b: Mat<F>,
-	pub original: &'a Mat<F>,
-}
-
-impl<'a, F: Field + EpsilonEquality> RowEquivalentForm<F> for RowEchelonForm<'a, F> {
-	fn p_mut(&mut self) -> &mut Mat<F> {
-		&mut self.p
+	pub fn rank(&self) -> usize {
+		self.form.b.rows() - self.form.b.zero_rows()
 	}
 
-	fn b_mut(&mut self) -> &mut Mat<F> {
-		&mut self.b
-	}
-
-	fn p(&self) -> &Mat<F> {
-		&self.p
-	}
-
-	fn b(&self) -> &Mat<F> {
-		&self.b
-	}
-}
-
-/// Struct containing original matrix `original`, reduced row echelon form `b`,
-/// and product of row operations `p`.
-pub struct ReducedRowEchelonForm<'a, F: Field + EpsilonEquality> {
-	pub p: Mat<F>,
-	pub rref: Mat<F>,
-	pub original: &'a Mat<F>,
-}
-
-impl<'a, F: Field + EpsilonEquality> RowEquivalentForm<F> for ReducedRowEchelonForm<'a, F> {
-	fn p_mut(&mut self) -> &mut Mat<F> {
-		&mut self.p
-	}
-
-	fn b_mut(&mut self) -> &mut Mat<F> {
-		&mut self.rref
-	}
-
-	fn p(&self) -> &Mat<F> {
-		&self.p
-	}
-
-	fn b(&self) -> &Mat<F> {
-		&self.rref
+	pub fn form(&self) -> &RowEquivalentForm<'a, F> {
+		&self.form
 	}
 }
 
@@ -264,7 +231,7 @@ impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
 		let n = self.rows();
 		let m = self.cols();
 
-		let mut form = RowEchelonForm {
+		let mut form = RowEquivalentForm {
 			b: self.clone(),
 			p: Mat::identity(n),
 			original: &self
@@ -287,52 +254,61 @@ impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
 			}
 		}
 		
-		form
+		RowEchelonForm {
+			form
+		}
 	}
+}
+
+pub struct ReducedRowEchelonForm<'a, F: Field + EpsilonEquality> {
+	form: RowEchelonForm<'a, F>
 }
 
 impl<'a, F: Field + StabilityCmp + EpsilonEquality> RowEchelonForm<'a, F> {
 
 	/// Computes reduced row echelon form
-	pub fn to_rref(self) -> ReducedRowEchelonForm<'a, F> {
-		let n = self.b.rows();
+	pub fn to_rref(mut self) -> ReducedRowEchelonForm<'a, F> {
+		let n = self.form.b.rows();
 
-		let mut form = ReducedRowEchelonForm {
-			p: self.p,
-			rref: self.b,
-			original: self.original
-		};
+		let form = &mut self.form;
 
 		for r in (1..n).rev() {
-			if let Some(c) = form.rref.index_of_first_nonzero_entry(r){
+			if let Some(c) = form.b.index_of_first_nonzero_entry(r){
 				form.replace_col_above_row(r,c);
 			}
 		}
 		
-		form
+		ReducedRowEchelonForm {
+			form: self
+		}
 	}
 }
 
 impl<'a, F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<'a, F> {
+	pub fn form(&self) -> &RowEchelonForm<'a, F> {
+		&self.form
+	}
 
 	/// Computes basis for the kernel
 	pub fn compute_kernel(&self) -> Vec<Mat<F>> {
-		let n = self.rref.cols();
+		let rref = &self.form.form.b;
+
+		let n = rref.cols();
 		let bound_variables : HashSet<usize> = 
-			(0..self.rref.rows())
+			(0..rref.rows())
 				.filter_map(
-					|r| self.rref.index_of_first_nonzero_entry(r)
+					|r| rref.index_of_first_nonzero_entry(r)
 				).collect();
 
 		let mut basis : Vec<Mat<F>> = vec![];
 
-		for c in (0..self.rref.cols()).filter(|c| !bound_variables.contains(&c)) {
+		for c in (0..rref.cols()).filter(|c| !bound_variables.contains(&c)) {
 			// if free variable
 			let mut vector : Mat<F> = Mat::e(c, n);
-			for r in 0..self.rref.rows() {
-				if let Some(c2) = self.rref.index_of_first_nonzero_entry(r) {
+			for r in 0..rref.rows() {
+				if let Some(c2) = rref.index_of_first_nonzero_entry(r) {
 					if c2 < c {
-						*vector.get_mut_unchecked(c2, 0) = F::ZERO-*self.rref.get_unchecked(r,c);
+						*vector.get_mut_unchecked(c2, 0) = F::ZERO-*rref.get_unchecked(r,c);
 					}
 				}
 			}
@@ -344,21 +320,23 @@ impl<'a, F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<'a, F>
 
 	/// Computes basis for the range. UNTESTED.
 	pub fn compute_range(&self) -> Vec<Mat<F>> {
+		let rref = &self.form.form.b;
+		let original = self.form.form.original;
+
 		let bound_variables : HashSet<usize> = 
-			(0..self.rref.rows())
+			(0..rref.rows())
 				.filter_map(
-					|r| self.rref.index_of_first_nonzero_entry(r)
+					|r| rref.index_of_first_nonzero_entry(r)
 				).collect();
 		
-		bound_variables.into_iter().map(|c| self.original.get_col(c)).collect()
+		bound_variables.into_iter().map(|c| original.get_col(c)).collect()
 	}
 }
 
 
 #[cfg(test)]
 mod tests {
-	use crate::linalg::algorithm::RowEquivalentForm;
-use crate::linalg::util::mat_iterator;
+	use crate::linalg::util::mat_iterator;
 	use crate::core::num::Field;
 
 	use super::Mat;
@@ -399,7 +377,7 @@ use crate::linalg::util::mat_iterator;
 
 		// iterate through all matrices with only entries in `values`
 		for mat in mat_iterator(n, m, &values) {
-			let row_ech = mat.row_echelon();
+			let row_ech = mat.row_echelon().form;
 			let lu = mat.lu();
 
 			assert!(lu.u.epsilon_equals(&row_ech.b),
@@ -457,15 +435,15 @@ use crate::linalg::util::mat_iterator;
 
 		// iterate through all matrices with only entries in `values`
 		for mat in mat_iterator(n, m, &values) {
-			let rref = mat.row_echelon().to_rref();
+			let rref = mat.row_echelon().to_rref().form.form;
 
 			let prod = &rref.p * &mat;
-			assert!(prod.epsilon_equals(&rref.rref),
+			assert!(prod.epsilon_equals(&rref.b),
 				"failed on {} == {}, epsilon error is {}, does not satisfy `p*a=b`",
-				prod, rref.rref, (&prod + &(&rref.rref*(-1.0))).frobenius_norm()
+				prod, rref.b, (&prod + &(&rref.b*(-1.0))).frobenius_norm()
 			);
 
-			assert!(rref.rref.is_rref(), "is not rref");
+			assert!(rref.b.is_rref(), "is not rref");
 		}
 	}
 
