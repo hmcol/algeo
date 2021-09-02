@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::core::num::{EpsilonEquality, Field, StabilityCmp};
+use crate::{core::num::{EpsilonEquality, Field, StabilityCmp}, linalg::algorithm::RowEquivalentForm};
 
 
 use super::mat::Mat;
