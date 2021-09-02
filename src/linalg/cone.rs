@@ -31,7 +31,7 @@ impl<F: Field + StabilityCmp + EpsilonEquality + PartialOrd> Cone<F> {
 
 		let generator_mat = Mat::from_row_vectors(&generators);
 		let rref = generator_mat.row_echelon().to_rref();
-		let dim = rref.form().rank();
+		let dim = rref.inner().rank();
 
 		let orth_comp_basis = rref.compute_kernel();
 
@@ -45,7 +45,7 @@ impl<F: Field + StabilityCmp + EpsilonEquality + PartialOrd> Cone<F> {
 			let subset_rref = subset_mat.row_echelon().to_rref();
 
 			// (1) check linearly independent
-			if subset_rref.form().rank() != dim-1 {
+			if subset_rref.inner().rank() != dim-1 {
 				continue;
 			}
 

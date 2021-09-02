@@ -204,23 +204,23 @@ impl<'a, F: Field> RowEquivalentForm<'a, F> {
 // good properties.
 
 pub struct RowEchelonForm<'a, F: Field + EpsilonEquality> {
-	form : RowEquivalentForm<'a, F>
+	inner : RowEquivalentForm<'a, F>
 }
 
 impl<'a, F: Field + EpsilonEquality> RowEchelonForm<'a, F> {
 
 	/// Computes the nullity (dimension of the kernel)
 	pub fn nullity(&self) -> usize {
-		self.form.b.cols() - self.rank()
+		self.inner.b.cols() - self.rank()
 	}
 
 	/// Computes the rank (dimension of the range)
 	pub fn rank(&self) -> usize {
-		self.form.b.rows() - self.form.b.zero_rows()
+		self.inner.b.rows() - self.inner.b.zero_rows()
 	}
 
-	pub fn form(&self) -> &RowEquivalentForm<'a, F> {
-		&self.form
+	pub fn inner(&self) -> &RowEquivalentForm<'a, F> {
+		&self.inner
 	}
 }
 
@@ -255,22 +255,22 @@ impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
 		}
 		
 		RowEchelonForm {
-			form
+			inner: form
 		}
 	}
 }
 
 pub struct ReducedRowEchelonForm<'a, F: Field + EpsilonEquality> {
-	form: RowEchelonForm<'a, F>
+	inner: RowEchelonForm<'a, F>
 }
 
 impl<'a, F: Field + StabilityCmp + EpsilonEquality> RowEchelonForm<'a, F> {
 
 	/// Computes reduced row echelon form
 	pub fn to_rref(mut self) -> ReducedRowEchelonForm<'a, F> {
-		let n = self.form.b.rows();
+		let n = self.inner.b.rows();
 
-		let form = &mut self.form;
+		let form = &mut self.inner;
 
 		for r in (1..n).rev() {
 			if let Some(c) = form.b.index_of_first_nonzero_entry(r){
@@ -279,19 +279,19 @@ impl<'a, F: Field + StabilityCmp + EpsilonEquality> RowEchelonForm<'a, F> {
 		}
 		
 		ReducedRowEchelonForm {
-			form: self
+			inner: self
 		}
 	}
 }
 
 impl<'a, F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<'a, F> {
-	pub fn form(&self) -> &RowEchelonForm<'a, F> {
-		&self.form
+	pub fn inner(&self) -> &RowEchelonForm<'a, F> {
+		&self.inner
 	}
 
 	/// Computes basis for the kernel
 	pub fn compute_kernel(&self) -> Vec<Mat<F>> {
-		let rref = &self.form.form.b;
+		let rref = &self.inner.inner.b;
 
 		let n = rref.cols();
 		let bound_variables : HashSet<usize> = 
@@ -320,8 +320,8 @@ impl<'a, F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<'a, F>
 
 	/// Computes basis for the range. UNTESTED.
 	pub fn compute_range(&self) -> Vec<Mat<F>> {
-		let rref = &self.form.form.b;
-		let original = self.form.form.original;
+		let rref = &self.inner.inner.b;
+		let original = self.inner.inner.original;
 
 		let bound_variables : HashSet<usize> = 
 			(0..rref.rows())
@@ -377,7 +377,7 @@ mod tests {
 
 		// iterate through all matrices with only entries in `values`
 		for mat in mat_iterator(n, m, &values) {
-			let row_ech = mat.row_echelon().form;
+			let row_ech = mat.row_echelon().inner;
 			let lu = mat.lu();
 
 			assert!(lu.u.epsilon_equals(&row_ech.b),
@@ -435,7 +435,7 @@ mod tests {
 
 		// iterate through all matrices with only entries in `values`
 		for mat in mat_iterator(n, m, &values) {
-			let rref = mat.row_echelon().to_rref().form.form;
+			let rref = mat.row_echelon().to_rref().inner.inner;
 
 			let prod = &rref.p * &mat;
 			assert!(prod.epsilon_equals(&rref.b),
