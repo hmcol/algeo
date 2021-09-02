@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::{core::num::{EpsilonEquality, Field, StabilityCmp}, linalg::algorithm::RowEquivalentForm};
+use crate::{core::num::{EpsilonEquality, Field, StabilityCmp}};
 
 
 use super::mat::Mat;
@@ -31,7 +31,7 @@ impl<F: Field + StabilityCmp + EpsilonEquality + PartialOrd> Cone<F> {
 
 		let generator_mat = Mat::from_row_vectors(&generators);
 		let rref = generator_mat.row_echelon().to_rref();
-		let dim = rref.inner().rank();
+		let dim = rref.rank();
 
 		let orth_comp_basis = rref.compute_kernel();
 
@@ -45,12 +45,12 @@ impl<F: Field + StabilityCmp + EpsilonEquality + PartialOrd> Cone<F> {
 			let subset_rref = subset_mat.row_echelon().to_rref();
 
 			// (1) check linearly independent
-			if subset_rref.inner().rank() != dim-1 {
+			if subset_rref.rank() != dim-1 {
 				continue;
 			}
 
 			// (2) get a normal (there are potentially multiple in dim != ambient_dim)
-			let mut subset_kernel = subset_rref.compute_kernel();
+			let subset_kernel = subset_rref.compute_kernel();
 			let mut normal = subset_kernel[0].clone();
 
 			// (3) check that all generators are on one side

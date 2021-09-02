@@ -156,7 +156,7 @@ impl<F: Field+StabilityCmp+EpsilonEquality> Mat<F> {
 /// Pair of invertible matrix `p` and row equivalent matrix `b` such that
 /// `p*a=b`. In the particular case that `b` is the identity, `p` is the
 /// inverse of `a`.
-pub struct RowEquivalentForm<'a, F: Field> {
+pub struct RowEquivalentForm<'a, F: Field, const IS_ECHELON: bool, const IS_REDUCED: bool> {
 	/// Inverible matrix `p` that transforms `original` to `b`.
 	p: Mat<F>,
 	/// Row-equivalent matrix `b`.
@@ -165,7 +165,7 @@ pub struct RowEquivalentForm<'a, F: Field> {
 	original: &'a Mat<F>
 }
 
-impl<'a, F: Field> RowEquivalentForm<'a, F> {
+impl<'a, F: Field, const E: bool, const R: bool> RowEquivalentForm<'a, F, E, R> {
 
 	fn permute(&mut self, r1: usize, r2: usize){
 		self.p.permute_rows(r1, r2);
@@ -198,31 +198,23 @@ impl<'a, F: Field> RowEquivalentForm<'a, F> {
 	}
 }
 
+type RowEchelonForm<'a, F> = RowEquivalentForm<'a, F, true, false>;
+type ReducedRowEchelonForm<'a, F> = RowEquivalentForm<'a, F, true, true>;
 
-// Row Equivalent return types -------------------------------------------------
-// These types can only be constructed by methods guaranteeing that they satsify
-// good properties.
 
-pub struct RowEchelonForm<'a, F: Field + EpsilonEquality> {
-	inner : RowEquivalentForm<'a, F>
-}
-
-impl<'a, F: Field + EpsilonEquality> RowEchelonForm<'a, F> {
+impl<'a, F: Field + EpsilonEquality, const R: bool> RowEquivalentForm<'a, F, true, R> {
 
 	/// Computes the nullity (dimension of the kernel)
 	pub fn nullity(&self) -> usize {
-		self.inner.b.cols() - self.rank()
+		self.b.cols() - self.rank()
 	}
 
 	/// Computes the rank (dimension of the range)
 	pub fn rank(&self) -> usize {
-		self.inner.b.rows() - self.inner.b.zero_rows()
-	}
-
-	pub fn inner(&self) -> &RowEquivalentForm<'a, F> {
-		&self.inner
+		self.b.rows() - self.b.zero_rows()
 	}
 }
+
 
 impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
 
@@ -254,23 +246,22 @@ impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
 			}
 		}
 		
-		RowEchelonForm {
-			inner: form
-		}
+		form
 	}
 }
 
-pub struct ReducedRowEchelonForm<'a, F: Field + EpsilonEquality> {
-	inner: RowEchelonForm<'a, F>
-}
 
 impl<'a, F: Field + StabilityCmp + EpsilonEquality> RowEchelonForm<'a, F> {
 
 	/// Computes reduced row echelon form
-	pub fn to_rref(mut self) -> ReducedRowEchelonForm<'a, F> {
-		let n = self.inner.b.rows();
+	pub fn to_rref(self) -> ReducedRowEchelonForm<'a, F> {
+		let n = self.b.rows();
 
-		let form = &mut self.inner;
+		let mut form = ReducedRowEchelonForm {
+			p: self.p,
+			b: self.b,
+			original: self.original
+		};
 
 		for r in (1..n).rev() {
 			if let Some(c) = form.b.index_of_first_nonzero_entry(r){
@@ -278,20 +269,15 @@ impl<'a, F: Field + StabilityCmp + EpsilonEquality> RowEchelonForm<'a, F> {
 			}
 		}
 		
-		ReducedRowEchelonForm {
-			inner: self
-		}
+		form
 	}
 }
 
 impl<'a, F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<'a, F> {
-	pub fn inner(&self) -> &RowEchelonForm<'a, F> {
-		&self.inner
-	}
 
 	/// Computes basis for the kernel
 	pub fn compute_kernel(&self) -> Vec<Mat<F>> {
-		let rref = &self.inner.inner.b;
+		let rref = &self.b;
 
 		let n = rref.cols();
 		let bound_variables : HashSet<usize> = 
@@ -320,8 +306,8 @@ impl<'a, F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<'a, F>
 
 	/// Computes basis for the range. UNTESTED.
 	pub fn compute_range(&self) -> Vec<Mat<F>> {
-		let rref = &self.inner.inner.b;
-		let original = self.inner.inner.original;
+		let rref = &self.b;
+		let original = self.original;
 
 		let bound_variables : HashSet<usize> = 
 			(0..rref.rows())
@@ -377,7 +363,7 @@ mod tests {
 
 		// iterate through all matrices with only entries in `values`
 		for mat in mat_iterator(n, m, &values) {
-			let row_ech = mat.row_echelon().inner;
+			let row_ech = mat.row_echelon();
 			let lu = mat.lu();
 
 			assert!(lu.u.epsilon_equals(&row_ech.b),
@@ -435,7 +421,7 @@ mod tests {
 
 		// iterate through all matrices with only entries in `values`
 		for mat in mat_iterator(n, m, &values) {
-			let rref = mat.row_echelon().to_rref().inner.inner;
+			let rref = mat.row_echelon().to_rref();
 
 			let prod = &rref.p * &mat;
 			assert!(prod.epsilon_equals(&rref.b),

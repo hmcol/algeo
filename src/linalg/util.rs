@@ -23,7 +23,7 @@ pub fn get_max_index<T, I, C>(slice: I, le: C) -> usize where
 		.0
 }
 
-pub fn num_to_seq(n: usize, base: usize) -> impl Iterator<Item=(usize)> {
+pub fn num_to_seq(n: usize, base: usize) -> impl Iterator<Item = usize> {
 	BaseSeqIterator::new(n, base)
 }
 
