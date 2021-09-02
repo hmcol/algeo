@@ -26,13 +26,14 @@ pub struct MDeg(pub BTreeMap<I, D>);
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Term<F: Field> {
-    coef: F,
-    mdeg: MDeg,
+    pub coef: F,
+    pub mdeg: MDeg,
 }
 
 /// a polynomial with coefficients in the field F
 #[derive(Clone, Debug, Hash)]
 pub struct Polynomial<F: Field> {
+    // pub?
     terms: Vec<Term<F>>,
 }
 
@@ -73,11 +74,19 @@ impl MDeg {
         )
     }
 
+    pub fn from_slice(slice: &[D]) -> Self {
+        MDeg::from_pairs(
+            &(0..slice.len())
+                .map(|idx| (idx as u8, slice[idx]))
+                .collect::<Vec<(I, D)>>(),
+        )
+    }
+
     /// returns the multidegree where each of `n` entries is `deg`.
     ///
     /// explicitly, `{0: deg, ..., n-1: deg}`.
     fn repeated(deg: D, n: I) -> Self {
-        MDeg((0..n).map(|i| (i, deg)).collect())
+        MDeg((0..n).map(|idx| (idx, deg)).collect())
     }
 
     /// returns multidegree of all ones: `[1 ... 1]`
@@ -183,7 +192,7 @@ impl<F: Field> Term<F> {
     /// corresponding
     /// polynomial function `eval_f: F^n -> F`, and the image of `x ∈ F^n`
     /// under this function is returned
-    /// 
+    ///
     /// should be changed to return some form of `Result<F, EvaluationError>`
     pub fn eval(&self, x: &[F]) -> F {
         if x.len() < self.mdeg.max_idx().into() {
