@@ -167,12 +167,12 @@ pub struct RowEquivalentForm<'a, F: Field, const IS_ECHELON: bool, const IS_REDU
 
 impl<'a, F: Field, const E: bool, const R: bool> RowEquivalentForm<'a, F, E, R> {
 
-	fn permute(&mut self, r1: usize, r2: usize){
+	fn permute_rows(&mut self, r1: usize, r2: usize){
 		self.p.permute_rows(r1, r2);
 		self.b.permute_rows(r1, r2);
 	}
 
-	fn scale(&mut self, r: usize, scalar: F){
+	fn scale_row(&mut self, r: usize, scalar: F){
 		self.p.scale_row(r, scalar);
 		self.b.scale_row(r, scalar);
 	}
@@ -238,8 +238,8 @@ impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
 			}
 
 			if let Some((stable_index, scalar)) = form.b.get_stable_column_index_under_row(c, r) {
-				form.permute(r, stable_index);
-				form.scale(r, F::ONE/scalar);
+				form.permute_rows(r, stable_index);
+				form.scale_row(r, F::ONE/scalar);
 				form.replace_col_under_row(r, c);
 				
 				r += 1;
@@ -338,7 +338,7 @@ mod tests {
 		// iterate through all matrices with only entries in `values`
 		for mat in mat_iterator(n, m, &values) {
 			let lu = mat.lu();
-			let prod = &lu.p.transpose()*&(&lu.l*&lu.u);
+			let prod: Mat<f64> = lu.p.transpose() * &lu.l * &lu.u;
 
 			assert!(lu.l.is_lower_triangular(),
 				"L={} is not lower triangular, original A={}",
@@ -368,13 +368,13 @@ mod tests {
 
 			assert!(lu.u.epsilon_equals(&row_ech.b),
 				"failed on {} == {}, epsilon error is {}, does not match LU decomposition",
-				lu.u, row_ech.b, (&lu.u + &(&row_ech.b*(-1.0))).frobenius_norm()
+				lu.u, row_ech.b, (&lu.u + &(&row_ech.b * (-1.0))).frobenius_norm()
 			);
 
 			let prod = &row_ech.p * &mat;
 			assert!(prod.epsilon_equals(&row_ech.b),
 				"failed on {} == {}, epsilon error is {}, does not satisfy `p*a=b`",
-				prod, row_ech.b, (&prod + &(&row_ech.b*(-1.0))).frobenius_norm()
+				prod, row_ech.b, (&prod + &(&row_ech.b * (-1.0))).frobenius_norm()
 			);
 		}
 	}
