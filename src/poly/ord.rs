@@ -28,28 +28,14 @@ pub fn cmp(order: MonomialOrder, a: &MDeg, b: &MDeg) -> Ordering {
 /// if a != b, compares first unequal degrees from the left
 ///
 /// e.g., a < b iff ∃k s.t. a_k < b_k and a_i = b_i, for i = 0,...,k-1
-///
-/// Currently gives the wrong answer if both are equal up to some index, and
-/// one has only remaining zeros (i.e., a lack of entries with greater index).
-/// In this case, the multidegree with only zeros remaining should be less.
 pub fn lex(ref a: &MDeg, b: &MDeg) -> Ordering {
-    for ((idx_a, deg_a), (idx_b, deg_b)) in a.degs().zip(b.degs()) {
-        match idx_a.cmp(idx_b) {
-            // Both `a` and `b` have nonzero entries at the given index.
-            Ordering::Equal => match deg_a.cmp(deg_b) {
-                Ordering::Equal => continue,
-                lt_or_gt => return lt_or_gt,
-            },
-            // Either `a` or `b` has a zero at an index where the other has a
-            // nonzero degree. The index `idx_a` (resp. `idx_b`) is the first
-            // nonzero index of `a` (resp. `b`) where the two differ. The
-            // greater of the two has a zero where the other has a positive
-            // degree. Therefore, the lesser multidegree is the one with the
-            // greater index, here.
-            lt_or_gt => return lt_or_gt.reverse(),
+    for (deg_a, deg_b) in a.degs().zip(b.degs()) {
+        match deg_a.cmp(deg_b) {
+            Ordering::Equal => continue,
+            lt_or_gt => return lt_or_gt,
         }
     }
-    grad(a, b)
+    Ordering::Equal
 }
 
 /// The Reverse [Lexicographic Order](https://w.wiki/3zwi) order on
@@ -57,18 +43,11 @@ pub fn lex(ref a: &MDeg, b: &MDeg) -> Ordering {
 ///
 /// This runs the lexicographic order with the indices reversed; not to be
 /// confused with simply calling `Ordering::reverse` on the result of [`lex`].
-///
-/// Same issue as lexicographic.
-///
-/// Likely some way to avoid this repetition or a better approach in general.
 pub fn revlex(a: &MDeg, b: &MDeg) -> Ordering {
-    for ((idx_a, deg_a), (idx_b, deg_b)) in a.degs().zip(b.degs()).rev() {
-        match idx_a.cmp(idx_b) {
-            Ordering::Equal => match deg_a.cmp(deg_b) {
-                Ordering::Equal => continue,
-                lt_or_gt => return lt_or_gt,
-            },
-            lt_or_gt => return lt_or_gt.reverse(),
+    for (deg_a, deg_b) in a.degs().zip(b.degs()).rev() {
+        match deg_a.cmp(deg_b) {
+            Ordering::Equal => continue,
+            lt_or_gt => return lt_or_gt,
         }
     }
     Ordering::Equal
@@ -120,7 +99,7 @@ mod tests {
 
     macro_rules! mdeg {
         ($( $deg:expr ),* $(,)?) => {
-            &MDeg::from_slice(&[ $( $deg ),* ])
+            &MDeg::from_vec(vec![ $( $deg ),* ])
         };
     }
 
@@ -133,8 +112,8 @@ mod tests {
         let d = |s: &[i8]| format!("{:?}{:?}{:?}", s[0], s[1], s[2]);
 
         let print = |(ref a, ref b): (Vec<i8>, Vec<i8>)| {
-            let mdeg_a = &MDeg::from_slice(a);
-            let mdeg_b = &MDeg::from_slice(b);
+            let mdeg_a = &MDeg::from_vec(a.clone());
+            let mdeg_b = &MDeg::from_vec(b.clone());
 
             println!("{} ~ {} => {:?}", d(a), d(b), lex(mdeg_a, mdeg_b));
         };
@@ -145,6 +124,33 @@ mod tests {
         assert_eq!(lex(mdeg![1], mdeg![0, 1]), Ordering::Greater);
 
         assert_eq!(lex(mdeg![0, 3, 2], mdeg![0, 3, 3]), Ordering::Less);
+
+        let iter = (0..=2).map(|_| 0..=1i8).multi_cartesian_product();
+
+        iter.clone().cartesian_product(iter).for_each(print);
+    }
+
+    #[test]
+    fn revlex() {
+        use super::revlex;
+
+        dbg!(mdeg![3, 0 , 2, 0, 0, 1, 4, 0, 0, 9]);
+
+        let d = |s: &[i8]| format!("{:?}{:?}{:?}", s[0], s[1], s[2]);
+
+        let print = |(ref a, ref b): (Vec<i8>, Vec<i8>)| {
+            let mdeg_a = &MDeg::from_vec(a.clone());
+            let mdeg_b = &MDeg::from_vec(b.clone());
+
+            println!("{} ~ {} => {:?}", d(a), d(b), revlex(mdeg_a, mdeg_b));
+        };
+
+        assert_eq!(revlex(mdeg![1], mdeg![1]), Ordering::Equal);
+        assert_eq!(revlex(mdeg![1, 2, 3], mdeg![1, 2, 3]), Ordering::Equal);
+
+        assert_eq!(revlex(mdeg![1], mdeg![0, 1]), Ordering::Greater);
+
+        assert_eq!(revlex(mdeg![0, 3, 2], mdeg![0, 3, 3]), Ordering::Less);
 
         let iter = (0..=2).map(|_| 0..=1i8).multi_cartesian_product();
 

@@ -1,4 +1,4 @@
-use std::collections::{btree_map, BTreeMap};
+use itertools::{EitherOrBoth, Itertools};
 use std::fmt;
 use std::ops::{Add, AddAssign, Mul, MulAssign};
 use xops::binop;
@@ -8,7 +8,7 @@ use crate::core::num::*;
 // structs ---------------------------------------------------------------------
 
 /// type for indexing the indeterminates
-type I = u8;
+type I = usize;
 
 /// type of the degrees in a multidegree
 type D = i8;
@@ -22,7 +22,7 @@ pub struct Const<F>(F);
 /// wrapper for `Vec<P>` to represent multidegree of monomial terms in a
 /// multivariate polynomial ring
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub struct MDeg(pub BTreeMap<I, D>);
+pub struct MDeg(Vec<D>);
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Term<F: Field> {
@@ -47,11 +47,34 @@ enum _Ring<F: Field> {
 // implementations -------------------------------------------------------------
 
 impl MDeg {
+    /// Returns an empty multidegree.
+    ///
+    /// In any mathematical context, you should prefer `MDeg::zero`.
+    #[inline]
+    pub fn new() -> Self {
+        MDeg::zero()
+    }
+
+    pub fn from_vec(mut vec: Vec<D>) -> Self {
+        let mut n = vec.len() - 1;
+        loop {
+            if vec[n] != 0 || n == 0 {
+                break;
+            };
+            n -= 1;
+        }
+        vec.truncate(n);
+
+        // return
+        MDeg(vec)
+    }
+
     /// returns the empty multidegree
     ///
     /// used for constant terms, i.e., terms without indeterminates
+    #[inline]
     pub fn zero() -> Self {
-        MDeg(BTreeMap::new())
+        MDeg(Vec::new())
     }
 
     /// returns the multidegree corresponding the the given slice of tuples
@@ -64,37 +87,31 @@ impl MDeg {
     ///
     /// this should probably be expanded to take any iterator over tuples, and
     /// any public constructor should pass through this filter
-    pub fn from_pairs(tuples: &[(I, D)]) -> Self {
-        MDeg(
-            tuples
-                .iter()
-                .copied()
-                .filter(|&(_, deg)| deg != 0i8)
-                .collect(),
-        )
-    }
+    pub fn from_pairs(pairs: &[(I, D)]) -> Self {
+        let mut vec = Vec::new();
+        let mut i = 0;
 
-    pub fn from_slice(slice: &[D]) -> Self {
-        MDeg::from_pairs(
-            &(0..slice.len())
-                .map(|idx| (idx as u8, slice[idx]))
-                .collect::<Vec<(I, D)>>(),
-        )
-    }
+        for &(idx, deg) in pairs {
+            if i == idx {
+                vec.push(deg);
+            } else {
+                let diff = idx - i;
+                vec.append(&mut vec![0; diff]);
+                i += diff;
+            }
+        }
 
-    /// returns the multidegree where each of `n` entries is `deg`.
-    ///
-    /// explicitly, `{0: deg, ..., n-1: deg}`.
-    fn repeated(deg: D, n: I) -> Self {
-        MDeg((0..n).map(|idx| (idx, deg)).collect())
+        // return
+        MDeg::from_vec(vec)
     }
 
     /// returns multidegree of all ones: `[1 ... 1]`
     ///
     /// used for the term `x_1` `x_2` \dots `x_n`, where each indeterminate
     /// occurs as a factor exactly once
+    #[inline]
     pub fn ones(n: I) -> Self {
-        Self::repeated(1, n)
+        MDeg::from_vec(vec![1; n])
     }
 
     /// returns the multidegree with the sole entry `idx: deg`
@@ -103,24 +120,29 @@ impl MDeg {
     /// - the multidegree of `x = x_0` is taken to be `{0: 1}`
     /// - the multidegree of `y = x_1` is taken to be `{1: 1}`
     /// - the multidegree of `z = x_2` is taken to be `{2: 1}`
+    #[inline]
     pub fn var(idx: I, deg: D) -> Self {
         MDeg::from_pairs(&[(idx, deg)])
     }
 
     /// returns iterator over the individual degree components
-    pub fn degs(&self) -> btree_map::Iter<I, D> {
+    ///
+    /// Should replace return with in-house iterator struct.
+    pub fn degs(&self) -> std::slice::Iter<D> {
         self.0.iter()
     }
 
     /// returns mutable iterator over the individual degree components
-    pub fn degs_mut(&mut self) -> btree_map::IterMut<I, D> {
+    ///
+    /// Should replace return with in-house iterator struct.
+    pub fn degs_mut(&mut self) -> std::slice::IterMut<D> {
         self.0.iter_mut()
     }
 
     /// returns the 'total degree' of a multidegree, i.e., the sum of the
     /// individual degree components
     pub fn total_deg(&self) -> D {
-        self.0.values().sum()
+        self.0.iter().sum()
     }
 
     /// returns the maximum index for which `self` contains an entry.
@@ -128,7 +150,7 @@ impl MDeg {
     /// in other words, this is the minimum value `n` for which we would
     /// consider `self` to be an element of the polynomial ring in `n` variables
     pub fn max_idx(&self) -> I {
-        self.0.keys().copied().max().unwrap_or(0)
+        self.0.len() - 1
     }
 }
 
@@ -204,7 +226,8 @@ impl<F: Field> Term<F> {
 
         self.mdeg
             .degs()
-            .map(|(&idx, &deg)| x[usize::from(idx)].powi32(deg.into()))
+            .zip(x)
+            .map(|(&deg, val)| val.powi32(deg.into()))
             .fold(self.coef, Mul::mul)
     }
 }
@@ -235,11 +258,15 @@ impl<F: Field> Polynomial<F> {
     }
 
     /// Returns an iterator over (immutably) borrowed terms: `Item = &Term<F>`.
+    ///
+    /// Should replace return with in-house iterator struct.
     pub fn terms(&self) -> std::slice::Iter<Term<F>> {
         self.terms.iter()
     }
 
     /// Returns an iterator over mutably borrowed terms: `Item = &mut Term<F>`.
+    ///
+    /// Should replace return with in-house iterator struct.
     pub fn terms_mut(&mut self) -> std::slice::IterMut<Term<F>> {
         self.terms.iter_mut()
     }
@@ -316,13 +343,9 @@ macro_rules! easy_ass {
 
 impl AddAssign<&MDeg> for MDeg {
     fn add_assign(&mut self, rhs: &MDeg) {
-        for (&idx, &deg) in rhs.degs() {
-            if let Some(self_deg) = self.0.get_mut(&idx) {
-                self_deg.add_assign(deg);
-            } else {
-                self.0.insert(idx, deg);
-            }
-        }
+        self.degs_mut()
+            .zip(rhs.degs())
+            .for_each(|(deg_a, deg_b)| deg_a.add_assign(deg_b));
     }
 }
 easy_ass! { MDeg [+, refs_clone] MDeg }
