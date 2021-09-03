@@ -1,4 +1,3 @@
-use itertools::{EitherOrBoth, Itertools};
 use std::fmt;
 use std::ops::{Add, AddAssign, Mul, MulAssign};
 use xops::binop;
@@ -21,7 +20,7 @@ pub struct Const<F>(F);
 
 /// wrapper for `Vec<P>` to represent multidegree of monomial terms in a
 /// multivariate polynomial ring
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(Clone, PartialEq, Eq, Default, Debug, Hash)]
 pub struct MDeg(Vec<D>);
 
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
@@ -56,14 +55,9 @@ impl MDeg {
     }
 
     pub fn from_vec(mut vec: Vec<D>) -> Self {
-        let mut n = vec.len() - 1;
-        loop {
-            if vec[n] != 0 || n == 0 {
-                break;
-            };
-            n -= 1;
+        while let Some(0) = vec.last() {
+            vec.pop();
         }
-        vec.truncate(n);
 
         // return
         MDeg(vec)
@@ -149,8 +143,8 @@ impl MDeg {
     ///
     /// in other words, this is the minimum value `n` for which we would
     /// consider `self` to be an element of the polynomial ring in `n` variables
-    pub fn max_idx(&self) -> I {
-        self.0.len() - 1
+    pub fn len(&self) -> I {
+        self.0.len()
     }
 }
 
@@ -217,7 +211,7 @@ impl<F: Field> Term<F> {
     ///
     /// should be changed to return some form of `Result<F, EvaluationError>`
     pub fn eval(&self, x: &[F]) -> F {
-        if x.len() < self.mdeg.max_idx().into() {
+        if x.len() < self.mdeg.len() {
             panic!(
                 "incorrectly sized argument {:?} passed to term {:?}",
                 x, self
@@ -445,7 +439,7 @@ var_fn! { w -> 5 }
 
 impl fmt::Display for MDeg {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MDeg{:?}", self.0)
+        write!(f, "{:?}", self.0)
     }
 }
 

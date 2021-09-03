@@ -60,7 +60,7 @@ impl Add for Frac {
 
 impl Sum for Frac {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
-        iter.reduce(Add::add).unwrap_or(Frac::zero())
+        iter.reduce(Add::add).unwrap_or_else(Frac::zero)
     }
 }
 
@@ -85,7 +85,7 @@ impl Mul for Frac {
 
 impl Product for Frac {
     fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
-        iter.reduce(Mul::mul).unwrap_or(Frac::one())
+        iter.reduce(Mul::mul).unwrap_or_else(Frac::one)
     }
 }
 
