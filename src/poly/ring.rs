@@ -81,6 +81,16 @@ impl MDeg {
         MDeg(Vec::new())
     }
 
+    // hack until we can guarantee multidegrees never have trailing zeros
+    pub fn is_zero(&self) -> bool {
+        for deg in &self.0 {
+            if *deg != 0 {
+                return false;
+            }
+        }
+        true
+    }
+
     /// returns the multidegree corresponding the the given slice of tuples
     ///
     /// if `tuples` contains the pair `(i, d)`, then the resulting multidegree
@@ -569,7 +579,48 @@ var_fn! { w -> 5 }
 
 impl fmt::Display for MDeg {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.0)
+        if self.len() <= 5 {
+            self.write_var(f, 0, "x")?;
+            self.write_var(f, 1, "y")?;
+            self.write_var(f, 2, "z")?;
+            self.write_var(f, 3, "u")?;
+            self.write_var(f, 4, "v")?;
+            self.write_var(f, 5, "w")?;
+        } else {
+            write!(f, "X{:?}", self.0)?;
+        }
+        Ok(())
+    }
+}
+
+impl MDeg {
+    fn write_var(&self, f: &mut fmt::Formatter, idx: I, ident: &str) -> fmt::Result {
+        if let Some(&deg) = self.0.get(idx) {
+            if deg == 1 {
+                write!(f, "{}", ident)?;
+            } else if deg != 0 {
+                write!(f, "{}{}", ident, superscript(deg))?;
+            }
+        }
+        Ok(())
+    }
+}
+
+pub fn superscript(n: i8) -> String {
+    match n {
+        0 => String::from("⁰"),
+        1 => String::from("¹"),
+        2 => String::from("²"),
+        3 => String::from("³"),
+        4 => String::from("⁴"),
+        5 => String::from("⁵"),
+        6 => String::from("⁶"),
+        7 => String::from("⁷"),
+        8 => String::from("⁸"),
+        9 => String::from("⁹"),
+        n if n >= 10 => superscript(n / 10) + &superscript(n % 10),
+        n if n < 0 => String::from("⁻") + &superscript(n.abs()),
+        _ => String::from("[bad deg]")
     }
 }
 
@@ -581,22 +632,34 @@ impl<F: Field> fmt::Display for Const<F> {
 
 impl<F: Field> fmt::Display for Term<F> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}·X{:?}", self.coef, self.mdeg.0)
+        if self.mdeg.is_zero() {
+            write!(f, "{}", self.coef)
+        } else if self.coef == F::ONE {
+            write!(f, "{}", self.mdeg)
+        } else if self.coef == -F::ONE {
+            write!(f, "-{}", self.mdeg)
+        } else {
+            write!(f, "{}{}", self.coef, self.mdeg)
+        }
     }
 }
 
-impl<F: Field> fmt::Display for Polynomial<F> {
+impl fmt::Display for Polynomial<f64> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut term_iter = self.terms.iter();
 
         if let Some(term) = term_iter.next() {
             write!(f, "{}", term)?;
         } else {
-            return write!(f, "0_F[x]");
+            return write!(f, "0");
         }
 
         for term in term_iter {
-            write!(f, " + {}", term)?;
+            if term.coef < 0.0 {
+                write!(f, " - {}", Term::new(-term.coef, term.mdeg.clone()))?;
+            } else {
+                write!(f, " + {}", term)?;
+            }
         }
 
         // return

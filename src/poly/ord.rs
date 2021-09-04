@@ -174,7 +174,6 @@ impl<F: Field> DivisionComputer<F> {
                     continue;
                 }
 
-
                 // f still has (nonzero) terms
 
                 for (g, q) in divs.iter().zip(quotients.iter_mut()) {
@@ -200,10 +199,10 @@ impl<F: Field> DivisionComputer<F> {
 
                 // sort the terms of f by the current order
                 f.terms.sort_by(|s, t| (self.order)(&s.mdeg, &t.mdeg));
-                
+
                 // ofter sorting, last term of f is the leading term, LT(f)
                 if let Some(lt_f) = f.terms.pop() {
-                    // first 
+                    // first
 
                     remainder += lt_f;
                 }
@@ -234,10 +233,10 @@ impl<F: Field> DivisionComputer<F> {
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
-    use std::{cmp::Ordering, marker::PhantomData};
+    use std::cmp::Ordering;
 
-    use crate::poly::*;
     use super::DivisionComputer;
+    use crate::poly::*;
 
     type Poly = Polynomial<f64>;
 
@@ -342,7 +341,7 @@ mod tests {
         assert_eq!(grlex(mdeg![0, 0, 2], mdeg![1, 0, 0]), Ordering::Greater);
         assert_eq!(grlex(mdeg![3, 0, 0], mdeg![1, 0, 2]), Ordering::Greater);
 
-        dbg_suite(grlex);
+        // dbg_suite(grlex);
     }
 
     #[test]
@@ -353,7 +352,7 @@ mod tests {
         assert_eq!(grevlex(mdeg![1, 0, 0], mdeg![1, 0, 0]), Ordering::Equal);
         assert_eq!(grevlex(mdeg![1, 2, 3], mdeg![1, 2, 3]), Ordering::Equal);
         assert_eq!(grevlex(mdeg![0, 0, 1], mdeg![0, 0, 1]), Ordering::Equal);
-        assert_eq!(grevlex(mdeg![1, 0, 0], mdeg![0, 1, 0]), Ordering::Equal);
+        
 
         assert_eq!(grevlex(mdeg![2, 2, 0], mdeg![1, 1, 5]), Ordering::Less);
         assert_eq!(grevlex(mdeg![1, 0, 0], mdeg![0, 1, 1]), Ordering::Less);
@@ -361,11 +360,12 @@ mod tests {
         assert_eq!(grevlex(mdeg![2, 2, 0], mdeg![0, 0, 1]), Ordering::Greater);
         assert_eq!(grevlex(mdeg![0, 0, 2], mdeg![1, 0, 0]), Ordering::Greater);
         assert_eq!(grevlex(mdeg![0, 3, 0], mdeg![1, 0, 1]), Ordering::Greater);
+        assert_eq!(grevlex(mdeg![1, 0, 0], mdeg![0, 1, 0]), Ordering::Greater);
 
         // dbg_suite(grevlex);
     }
 
-    #[test]
+    // #[test]
     fn dbg_grlex_vs_grevlex() {
         let mut vecs = Vec::new();
 
@@ -399,31 +399,77 @@ mod tests {
         println!("{}", format!("{} {}", head, f));
     }
 
+    macro_rules! pp {
+        ($poly:expr) => {
+            println!("{} = {}", stringify!($poly), &$poly);
+        };
+    }
+
+    macro_rules! pps {
+        ($polys:expr) => {
+            for i in 0..($polys.len()) {
+                println!("{}[{}] = {}", stringify!($polys), i, &$polys[i]);
+            }
+        };
+    }
+
     #[test]
     fn division() {
-        let term = |coef, degs| Poly::from(Term::from_coef_degs(coef, degs));
-
-        let f = term(1.0, &[3, 3]) + term(3.0, &[2, 4]);
-        let g = term(1.0, &[1, 4]);
-
-        print_poly("f =", &f);
-        print_poly("g =", &g);
-        println!();
-
-        let div_comp = DivisionComputer::<f64>::new(lex);
-
-        let (r, q_vec) = div_comp.divide(&f, &[g.clone()]);
-
-        print_poly("r =", &r);
-        for (i, q) in q_vec.iter().enumerate() {
-            print_poly(&format!("q_{} =", i), q);
-        }
-
-        println!();
-
-        let f2 = &q_vec[0] * g + r;
-
-        print_poly("f_2 =", &f2)
+        let c = |coef| Poly::from(Term::<f64>::from(coef));
+        let x = |d| Poly::from(x::<f64>(d));
+        let y = |d| Poly::from(y::<f64>(d));
+        // let z = |d| Poly::from(z::<f64>(d));
         
+        let dc = DivisionComputer::<f64>::new(lex);
+        let div = |f, divs| dc.divide(f, divs);
+
+        let f = c(1.0) * x(3) * y(3) + c(3.0) * x(2) * y(4);
+        let g = [c(1.0) * x(1) * y(4)];
+
+        pp!(f);
+        pps!(g);
+        println!();
+
+        let (r, q) = div(&f, &g);
+        pp!(r);
+        pps!(q);
+        println!();
+
+        let f2 = &q[0] * &g[0] + r;
+        pp!(f2);
+
+        println!("\n------------------------------\n");
+
+        let f = x(2) + x(1) - y(2) + y(1);
+        let g = [x(1) * y(1) + c(1.0), x(1) + y(1)];
+
+        pp!(f);
+        pps!(g);
+        println!();
+
+        let (r, q) = div(&f, &g);
+        pp!(r);
+        pps!(q);
+        println!();
+
+        let f2 = &q[0] * &g[0] + &q[1] * &g[1] + r;
+        pp!(f2);
+
+        println!("\n------------------------------\n");
+
+        let f = x(2) + x(1) - y(2) + y(1);
+        let g = [x(1) + y(1), x(1) * y(1) + c(1.0)];
+
+        pp!(f);
+        pps!(g);
+        println!();
+
+        let (r, q) = div(&f, &g);
+        pp!(r);
+        pps!(q);
+        println!();
+
+        let f2 = &q[0] * &g[0] + &q[1] * &g[1] + r;
+        pp!(f2);
     }
 }
