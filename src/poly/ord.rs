@@ -79,70 +79,6 @@ pub fn grevlex(a: &MDeg, b: &MDeg) -> Ordering {
 ///
 struct _PlaceHolder;
 
-/* enum Ordered<T> {
-    Lex(T),
-    RevLex(T),
-    Grad(T),
-    GrLex(T),
-    GrevLex(T),
-}
-
-impl<T> Ordered<T> {
-    pub fn inner<'a>(&'a self) -> &'a T {
-        match self {
-            Ordered::Lex(x) => x,
-            Ordered::RevLex(x) => x,
-            Ordered::Grad(x) => x,
-            Ordered::GrLex(x) => x,
-            Ordered::GrevLex(x) => x,
-        }
-    }
-}
-
-impl PartialEq for Ordered<MDeg> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::Lex(a), Self::Lex(b)) => a == b,
-            (Self::RevLex(a), Self::RevLex(b)) => a == b,
-            (Self::Grad(a), Self::Grad(b)) => a == b,
-            (Self::GrLex(a), Self::GrLex(b)) => a == b,
-            (Self::GrevLex(a), Self::GrevLex(b)) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl Eq for Ordered<MDeg> {}
-
-impl PartialOrd for Ordered<MDeg> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self, other) {
-            (Self::Lex(a), Self::Lex(b)) => Some(lex(a, b)),
-            (Self::RevLex(a), Self::RevLex(b)) => Some(revlex(a, b)),
-            (Self::Grad(a), Self::Grad(b)) => Some(grad(a, b)),
-            (Self::GrLex(a), Self::GrLex(b)) => Some(grlex(a, b)),
-            (Self::GrevLex(a), Self::GrevLex(b)) => Some(grevlex(a, b)),
-            _ => None,
-        }
-    }
-}
-
-impl Ord for Ordered<MDeg> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        // should handle monomial ordering better; this is stinky
-        self.partial_cmp(other).expect(
-            "illegal comparison of ordered multidegrees of differing \
-            variants; this error implies a flaw in the algeo crate",
-        )
-    }
-}
-
-impl<F: Field> Ordered<Poly<F>> {
-    pub fn leading_term<'a>(&'a self) -> Ordered<&'a Term<F>> {
-        todo!()
-    }
-} */
-
 #[derive(Clone, Copy)]
 struct DivisionComputer<F: Field> {
     order: fn(&MDeg, &MDeg) -> Ordering,
@@ -365,7 +301,7 @@ mod tests {
         // dbg_suite(grevlex);
     }
 
-    // #[test]
+    #[test]
     fn dbg_grlex_vs_grevlex() {
         let mut vecs = Vec::new();
 
@@ -393,10 +329,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    fn print_poly(head: &str, f: &Poly) {
-        println!("{}", format!("{} {}", head, f));
     }
 
     macro_rules! pp {

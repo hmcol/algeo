@@ -455,6 +455,15 @@ impl<F: Field> Add for &Term<F> {
     }
 }
 
+#[binop(derefs)]
+impl<F: Field> Sub for &Term<F> {
+    type Output = Polynomial<F>;
+
+    fn sub(self, rhs: &Term<F>) -> Self::Output {
+        Polynomial::from(self.clone()) - rhs
+    }
+}
+
 impl<F: Field> AddAssign<&Term<F>> for Polynomial<F> {
     fn add_assign(&mut self, rhs: &Term<F>) {
         if let Some(i) = self.terms_mut().position(|t| t.mdeg == rhs.mdeg) {

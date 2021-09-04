@@ -3,22 +3,10 @@ use algeo::poly::*;
 //use algeo::linalg::row_echelon::*;
 
 fn main() {
-    let neg_y = Term::constant(-1.0) * y(1);
+    let p = x(1) + y(1);
+    let q = x(1) - y(1);
 
-    let mut p = Polynomial::<f64>::zero();
-    let mut q = Polynomial::<f64>::zero();
-
-    p += x(1);
-    p += y(1);
-
-    q += x(1);
-    q += neg_y;
-    
-    println!("pq = ({})({})", p, q);
-
-    let r = p * q;
-
-    println!("   = {}", r);
+    println!("\n({})({}) = {}", p, q, &p * &q);
 
     // let mat : Mat<f32> = Mat::new(3, 4,
     //     vec![
