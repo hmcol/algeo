@@ -1,5 +1,5 @@
 use std::iter::{Product, Sum};
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use std::cmp::Ordering;
 
 use super::frac::Frac;
@@ -60,7 +60,7 @@ pub trait Field:
     + std::fmt::Display
     + PartialEq
     + Add<Self, Output = Self> + AddAssign<Self> + Sum
-    + Sub<Self, Output = Self> + SubAssign<Self>
+    + Sub<Self, Output = Self> + SubAssign<Self> + Neg<Output = Self>
     + Zero
     + Mul<Self, Output = Self> + MulAssign<Self> + Product
     + Div<Self, Output = Self> + DivAssign<Self>

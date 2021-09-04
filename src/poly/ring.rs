@@ -1,5 +1,5 @@
 use std::fmt;
-use std::ops::{Add, AddAssign, Mul, MulAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use xops::binop;
 
 use crate::core::num::*;
@@ -32,8 +32,8 @@ pub struct Term<F: Field> {
 /// a polynomial with coefficients in the field F
 #[derive(Clone, Debug, Hash)]
 pub struct Polynomial<F: Field> {
-    // pub?
-    terms: Vec<Term<F>>,
+    // pub? yeah pub.
+    pub terms: Vec<Term<F>>,
 }
 
 /// possible way to handle interoperability between different types of elements in `F[X]`
@@ -146,6 +146,19 @@ impl MDeg {
     pub fn len(&self) -> I {
         self.0.len()
     }
+
+    pub fn is_succ(&self, other: &MDeg) -> bool {
+        if self.len() > other.len() {
+            return false;
+        }
+
+        for (a, b) in self.degs().zip(other.degs()) {
+            if a > b {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl<F: Field> Term<F> {
@@ -224,6 +237,11 @@ impl<F: Field> Term<F> {
             .map(|(&deg, val)| val.powi32(deg.into()))
             .fold(self.coef, Mul::mul)
     }
+
+    pub fn divides(&self, other: &Term<F>) -> bool {
+        // should first check that self.coef is nonzero
+        self.mdeg.is_succ(&other.mdeg)
+    }
 }
 
 impl<F: Field> Polynomial<F> {
@@ -273,6 +291,14 @@ impl<F: Field> Polynomial<F> {
     /// maximum index variable of `self`.
     pub fn eval(&self, x: &[F]) -> F {
         self.terms().map(|t| t.eval(x)).sum()
+    }
+}
+
+// defaults --------------------------------------------------------------------
+
+impl<F: Field> Default for Polynomial<F> {
+    fn default() -> Self {
+        Self::zero()
     }
 }
 
@@ -330,8 +356,14 @@ macro_rules! easy_ass {
     ($Lhs:ty [+ $(,$arg:ident)*] $($t:tt)*) => {
         easy_ass! { @internal AddAssign add_assign Add add $(,$arg)* for $Lhs, $($t)* }
     };
+    ($Lhs:ty [- $(,$arg:ident)*] $($t:tt)*) => {
+        easy_ass! { @internal SubAssign sub_assign Sub sub $(,$arg)* for $Lhs, $($t)* }
+    };
     ($Lhs:ty [* $(,$arg:ident)*] $($t:tt)*) => {
         easy_ass! { @internal MulAssign mul_assign Mul mul $(,$arg)* for $Lhs, $($t)* }
+    };
+    ($Lhs:ty [/ $(,$arg:ident)*] $($t:tt)*) => {
+        easy_ass! { @internal DivAssign div_assign Div div $(,$arg)* for $Lhs, $($t)* }
     };
 }
 
@@ -344,6 +376,15 @@ impl AddAssign<&MDeg> for MDeg {
 }
 easy_ass! { MDeg [+, refs_clone] MDeg }
 
+impl SubAssign<&MDeg> for MDeg {
+    fn sub_assign(&mut self, rhs: &MDeg) {
+        self.degs_mut()
+            .zip(rhs.degs())
+            .for_each(|(deg_a, deg_b)| deg_a.sub_assign(deg_b));
+    }
+}
+easy_ass! { MDeg [-, refs_clone] MDeg }
+
 impl<F: Field> MulAssign<&Term<F>> for Term<F> {
     fn mul_assign(&mut self, rhs: &Term<F>) {
         self.coef *= rhs.coef;
@@ -351,6 +392,14 @@ impl<F: Field> MulAssign<&Term<F>> for Term<F> {
     }
 }
 easy_ass! { Term<F> [*, refs_clone] Term<F> where F: Field }
+
+impl<F: Field> DivAssign<&Term<F>> for Term<F> {
+    fn div_assign(&mut self, rhs: &Term<F>) {
+        self.coef /= rhs.coef;
+        self.mdeg -= &rhs.mdeg;
+    }
+}
+easy_ass! { Term<F> [/, refs_clone] Term<F> where F: Field }
 
 impl<F: Field> AddAssign<&Term<F>> for Polynomial<F> {
     fn add_assign(&mut self, rhs: &Term<F>) {
@@ -361,8 +410,26 @@ impl<F: Field> AddAssign<&Term<F>> for Polynomial<F> {
         }
     }
 }
-
 easy_ass! { Polynomial<F> [+, refs_clone, commute] Term<F> where F: Field }
+
+impl<F: Field> Neg for &Term<F> {
+    type Output = Term<F>;
+
+    fn neg(self) -> Self::Output {
+        Term::new(-self.coef, self.mdeg.clone())
+    }
+}
+
+impl<F: Field> SubAssign<&Term<F>> for Polynomial<F> {
+    fn sub_assign(&mut self, rhs: &Term<F>) {
+        if let Some(t) = self.terms_mut().find(|t| t.mdeg == rhs.mdeg) {
+            t.coef -= rhs.coef; // consider adding checks for zero coef
+        } else {
+            self.terms.push(-rhs);
+        }
+    }
+}
+easy_ass! { Polynomial<F> [-, refs_clone, commute] Term<F> where F: Field }
 
 impl<F: Field> AddAssign<&Polynomial<F>> for Polynomial<F> {
     fn add_assign(&mut self, rhs: &Polynomial<F>) {
@@ -371,8 +438,16 @@ impl<F: Field> AddAssign<&Polynomial<F>> for Polynomial<F> {
         }
     }
 }
-
 easy_ass! { Polynomial<F> [+, refs_clone] Polynomial<F> where F: Field }
+
+impl<F: Field> SubAssign<&Polynomial<F>> for Polynomial<F> {
+    fn sub_assign(&mut self, rhs: &Polynomial<F>) {
+        for term in rhs.terms() {
+            self.sub_assign(term);
+        }
+    }
+}
+easy_ass! { Polynomial<F> [-, refs_clone] Polynomial<F> where F: Field }
 
 impl<F: Field> MulAssign<&Term<F>> for Polynomial<F> {
     fn mul_assign(&mut self, rhs: &Term<F>) {
@@ -381,7 +456,6 @@ impl<F: Field> MulAssign<&Term<F>> for Polynomial<F> {
         }
     }
 }
-
 easy_ass! { Polynomial<F> [*, refs_clone, commute] Term<F> where F: Field }
 
 #[binop(derefs)]

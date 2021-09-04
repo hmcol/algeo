@@ -1,6 +1,6 @@
 use std::{
     iter::{Product, Sum},
-    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign},
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
 /// integer type for fractions
@@ -72,6 +72,15 @@ impl Sub for Frac {
             self.numer * other.denom - other.numer * self.denom,
             self.denom * other.denom,
         )
+    }
+}
+
+impl Neg for Frac {
+    type Output = Self;
+
+    #[inline]
+    fn neg(self) -> Self::Output {
+        Frac::new_unchecked(-self.numer, self.denom)
     }
 }
 

@@ -1,27 +1,9 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, marker::PhantomData};
 
-use super::{MDeg, Polynomial, Term};
+use itertools::Itertools;
+
+use super::{MDeg, Polynomial as Poly, Term};
 use crate::core::num::Field;
-
-/// enum for various possible monomial orders on multidegrees
-pub enum MonomialOrder {
-    Lex,
-    RevLex,
-    Grad,
-    GrLex,
-    GRevLex,
-}
-
-/// applies the given monomial order to a and b
-pub fn cmp(order: MonomialOrder, a: &MDeg, b: &MDeg) -> Ordering {
-    match order {
-        MonomialOrder::Lex => lex(a, b),
-        MonomialOrder::RevLex => revlex(a, b),
-        MonomialOrder::Grad => grad(a, b),
-        MonomialOrder::GrLex => grlex(a, b),
-        MonomialOrder::GRevLex => grevlex(a, b),
-    }
-}
 
 /// The [Lexicographic Order](https://w.wiki/3zwi) on multidegrees.
 ///
@@ -63,6 +45,9 @@ pub fn revlex(a: &MDeg, b: &MDeg) -> Ordering {
 /// Simply compares the total degrees.
 ///
 /// This is the usual grading on a univariate polynomial ring.
+///
+/// Important note: this is not a 'monomial order' as it is not antisymmetric;
+/// should probably be moved or hidden to avoid confusion
 pub fn grad(a: &MDeg, b: &MDeg) -> Ordering {
     a.total_deg().cmp(&b.total_deg())
 }
@@ -94,8 +79,141 @@ pub fn grevlex(a: &MDeg, b: &MDeg) -> Ordering {
 ///
 struct _PlaceHolder;
 
+/* enum Ordered<T> {
+    Lex(T),
+    RevLex(T),
+    Grad(T),
+    GrLex(T),
+    GrevLex(T),
+}
 
+impl<T> Ordered<T> {
+    pub fn inner<'a>(&'a self) -> &'a T {
+        match self {
+            Ordered::Lex(x) => x,
+            Ordered::RevLex(x) => x,
+            Ordered::Grad(x) => x,
+            Ordered::GrLex(x) => x,
+            Ordered::GrevLex(x) => x,
+        }
+    }
+}
 
+impl PartialEq for Ordered<MDeg> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Lex(a), Self::Lex(b)) => a == b,
+            (Self::RevLex(a), Self::RevLex(b)) => a == b,
+            (Self::Grad(a), Self::Grad(b)) => a == b,
+            (Self::GrLex(a), Self::GrLex(b)) => a == b,
+            (Self::GrevLex(a), Self::GrevLex(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Ordered<MDeg> {}
+
+impl PartialOrd for Ordered<MDeg> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Self::Lex(a), Self::Lex(b)) => Some(lex(a, b)),
+            (Self::RevLex(a), Self::RevLex(b)) => Some(revlex(a, b)),
+            (Self::Grad(a), Self::Grad(b)) => Some(grad(a, b)),
+            (Self::GrLex(a), Self::GrLex(b)) => Some(grlex(a, b)),
+            (Self::GrevLex(a), Self::GrevLex(b)) => Some(grevlex(a, b)),
+            _ => None,
+        }
+    }
+}
+
+impl Ord for Ordered<MDeg> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // should handle monomial ordering better; this is stinky
+        self.partial_cmp(other).expect(
+            "illegal comparison of ordered multidegrees of differing \
+            variants; this error implies a flaw in the algeo crate",
+        )
+    }
+}
+
+impl<F: Field> Ordered<Poly<F>> {
+    pub fn leading_term<'a>(&'a self) -> Ordered<&'a Term<F>> {
+        todo!()
+    }
+} */
+
+#[derive(Clone, Copy)]
+struct DivisionComputer<F: Field> {
+    order: fn(&MDeg, &MDeg) -> Ordering,
+    _field_marker: PhantomData<F>,
+}
+
+impl<F: Field> DivisionComputer<F> {
+    pub fn divide(&self, f: &Poly<F>, divs: &[Poly<F>]) -> (Poly<F>, Vec<Poly<F>>) {
+        let m = divs.len();
+        let mut quotients = vec![Poly::<F>::zero(); m];
+        let mut remainder = Poly::<F>::zero();
+
+        let mut f = f.clone();
+
+        'outer: loop {
+            if let Some(lt_f) = self.leading_term(&f).cloned() {
+                // f still has (nonzero) terms
+
+                for (g, q) in divs.iter().zip(quotients.iter_mut()) {
+                    if let Some(lt_g) = self.leading_term(&g) {
+                        if lt_g.divides(&lt_f) {
+                            // case 1: LT(f) is divisible by some LT(g_i)
+                            // - use LT(g_i) to reduce the degree of f
+
+                            // a_i is the term such that LT(f) = a_i * LT(g_i)
+                            let a = &(&lt_f / lt_g);
+                            // add a_i to g_i's quotient, q_i
+                            *q += a;
+                            // eliminate LT(f) with a_i * LT(g_i)
+                            f -= a * g;
+
+                            continue 'outer;
+                        }
+                    }
+                }
+
+                // case 2: LT(f) is not divisible by any LT(g_1), ..., LT(g_m)
+                // - subtract the leading term of f and add it to the remainder
+
+                // sort the terms of f by the current order
+                f.terms.sort_by(|s, t| (self.order)(&s.mdeg, &t.mdeg));
+                
+                // ofter sorting, last term of f is the leading term, LT(f)
+                if let Some(lt_f) = f.terms.pop() {
+                    // first 
+
+                    remainder += lt_f;
+                }
+            } else {
+                // f has no more (nonzero) terms; division is done
+                break;
+            }
+        }
+
+        // return
+        (remainder, quotients)
+    }
+
+    pub fn sort_terms(&self, f: &Poly<F>) -> Poly<F> {
+        Poly::from_vec(
+            f.terms()
+                .sorted_by(|s, t| (self.order)(&s.mdeg, &t.mdeg))
+                .cloned()
+                .collect(),
+        )
+    }
+
+    pub fn leading_term<'a>(&self, f: &'a Poly<F>) -> Option<&'a Term<F>> {
+        f.terms().max_by(|s, t| (self.order)(&s.mdeg, &t.mdeg))
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -256,5 +374,10 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn division() {
+        
     }
 }
