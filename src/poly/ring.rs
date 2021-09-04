@@ -54,9 +54,19 @@ impl MDeg {
         MDeg::zero()
     }
 
+    /// Trims trailing zeros
+    #[inline]
+    pub fn trim_zeros(&mut self) {
+        if let Some(idx) = self.degs().rposition(|deg| *deg != 0) {
+            self.0.truncate(idx + 1);
+        }
+    }
+
+    /// Returns the multidegree wrapping the given vector, after truncating off
+    /// any trailing zeros
     pub fn from_vec(mut vec: Vec<D>) -> Self {
-        while let Some(0) = vec.last() {
-            vec.pop();
+        if let Some(idx) = vec.iter().rposition(|deg| *deg != 0) {
+            vec.truncate(idx + 1);
         }
 
         // return
@@ -82,7 +92,7 @@ impl MDeg {
     /// this should probably be expanded to take any iterator over tuples, and
     /// any public constructor should pass through this filter
     pub fn from_pairs(pairs: &[(I, D)]) -> Self {
-        let mut vec = Vec::new();
+        /* let mut vec = Vec::new();
         let mut i = 0;
 
         for &(idx, deg) in pairs {
@@ -93,10 +103,19 @@ impl MDeg {
                 vec.append(&mut vec![0; diff]);
                 i += diff;
             }
-        }
+        } */
 
-        // return
-        MDeg::from_vec(vec)
+        if let Some(n) = pairs.iter().map(|pair| pair.0).max() {
+            let mut vec = vec![0; n + 1];
+
+            for &(idx, deg) in pairs {
+                vec[idx] = deg;
+            }
+
+            MDeg::from_vec(vec)
+        } else {
+            MDeg::zero()
+        }
     }
 
     /// returns multidegree of all ones: `[1 ... 1]`
@@ -176,6 +195,10 @@ impl<F: Field> Term<F> {
     #[inline]
     pub fn new(coef: F, mdeg: MDeg) -> Self {
         Term { coef, mdeg }
+    }
+
+    pub fn from_coef_degs(coef: F, degs: &[D]) -> Self {
+        Term::new(coef, MDeg::from_vec(degs.into()))
     }
 
     /// returns a term with the given coefficient and multidegree `MDeg::0`
@@ -369,6 +392,11 @@ macro_rules! easy_ass {
 
 impl AddAssign<&MDeg> for MDeg {
     fn add_assign(&mut self, rhs: &MDeg) {
+        if self.len() < rhs.len() {
+            let pad_zeros = &mut vec![0; std::cmp::max(0, rhs.len() - self.len())];
+            self.0.append(pad_zeros);
+        }
+
         self.degs_mut()
             .zip(rhs.degs())
             .for_each(|(deg_a, deg_b)| deg_a.add_assign(deg_b));
@@ -378,9 +406,16 @@ easy_ass! { MDeg [+, refs_clone] MDeg }
 
 impl SubAssign<&MDeg> for MDeg {
     fn sub_assign(&mut self, rhs: &MDeg) {
+        if self.len() < rhs.len() {
+            let pad_zeros = &mut vec![0; std::cmp::max(0, rhs.len() - self.len())];
+            self.0.append(pad_zeros);
+        }
+
         self.degs_mut()
             .zip(rhs.degs())
             .for_each(|(deg_a, deg_b)| deg_a.sub_assign(deg_b));
+        
+        self.trim_zeros();
     }
 }
 easy_ass! { MDeg [-, refs_clone] MDeg }
@@ -401,10 +436,25 @@ impl<F: Field> DivAssign<&Term<F>> for Term<F> {
 }
 easy_ass! { Term<F> [/, refs_clone] Term<F> where F: Field }
 
+#[binop(derefs)]
+impl<F: Field> Add for &Term<F> {
+    type Output = Polynomial<F>;
+
+    fn add(self, rhs: &Term<F>) -> Self::Output {
+        Polynomial::from(self.clone()) + rhs
+    }
+}
+
 impl<F: Field> AddAssign<&Term<F>> for Polynomial<F> {
     fn add_assign(&mut self, rhs: &Term<F>) {
-        if let Some(t) = self.terms_mut().find(|t| t.mdeg == rhs.mdeg) {
-            t.coef += rhs.coef; // consider adding checks for zero coef
+        if let Some(i) = self.terms_mut().position(|t| t.mdeg == rhs.mdeg) {
+            self.terms[i].coef += rhs.coef;
+
+            // should be replaced with proper field zero checking
+            // ya know, floating point error and stuff
+            if self.terms[i].coef == F::ZERO {
+                self.terms.remove(i);
+            }
         } else {
             self.terms.push(rhs.clone());
         }
@@ -422,8 +472,14 @@ impl<F: Field> Neg for &Term<F> {
 
 impl<F: Field> SubAssign<&Term<F>> for Polynomial<F> {
     fn sub_assign(&mut self, rhs: &Term<F>) {
-        if let Some(t) = self.terms_mut().find(|t| t.mdeg == rhs.mdeg) {
-            t.coef -= rhs.coef; // consider adding checks for zero coef
+        if let Some(i) = self.terms_mut().position(|t| t.mdeg == rhs.mdeg) {
+            self.terms[i].coef -= rhs.coef;
+
+            // should be replaced with proper field zero checking
+            // ya know, floating point error and stuff
+            if self.terms[i].coef == F::ZERO {
+                self.terms.remove(i);
+            }
         } else {
             self.terms.push(-rhs);
         }

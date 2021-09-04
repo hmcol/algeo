@@ -150,6 +150,13 @@ struct DivisionComputer<F: Field> {
 }
 
 impl<F: Field> DivisionComputer<F> {
+    pub fn new(order: fn(&MDeg, &MDeg) -> Ordering) -> Self {
+        DivisionComputer {
+            order: order,
+            _field_marker: PhantomData,
+        }
+    }
+
     pub fn divide(&self, f: &Poly<F>, divs: &[Poly<F>]) -> (Poly<F>, Vec<Poly<F>>) {
         let m = divs.len();
         let mut quotients = vec![Poly::<F>::zero(); m];
@@ -159,6 +166,15 @@ impl<F: Field> DivisionComputer<F> {
 
         'outer: loop {
             if let Some(lt_f) = self.leading_term(&f).cloned() {
+                // hack to ignore zero coefficients
+                // - will not work in case of floating-point error
+                // - should be feature of polynomials to cull zeros
+                if lt_f.coef == F::ZERO {
+                    f.terms.pop();
+                    continue;
+                }
+
+
                 // f still has (nonzero) terms
 
                 for (g, q) in divs.iter().zip(quotients.iter_mut()) {
@@ -218,9 +234,12 @@ impl<F: Field> DivisionComputer<F> {
 #[cfg(test)]
 mod tests {
     use itertools::Itertools;
-    use std::cmp::Ordering;
+    use std::{cmp::Ordering, marker::PhantomData};
 
     use crate::poly::*;
+    use super::DivisionComputer;
+
+    type Poly = Polynomial<f64>;
 
     macro_rules! mdeg {
         ($( $deg:expr ),* $(,)?) => {
@@ -376,8 +395,35 @@ mod tests {
         }
     }
 
+    fn print_poly(head: &str, f: &Poly) {
+        println!("{}", format!("{} {}", head, f));
+    }
+
     #[test]
     fn division() {
+        let term = |coef, degs| Poly::from(Term::from_coef_degs(coef, degs));
+
+        let f = term(1.0, &[3, 3]) + term(3.0, &[2, 4]);
+        let g = term(1.0, &[1, 4]);
+
+        print_poly("f =", &f);
+        print_poly("g =", &g);
+        println!();
+
+        let div_comp = DivisionComputer::<f64>::new(lex);
+
+        let (r, q_vec) = div_comp.divide(&f, &[g.clone()]);
+
+        print_poly("r =", &r);
+        for (i, q) in q_vec.iter().enumerate() {
+            print_poly(&format!("q_{} =", i), q);
+        }
+
+        println!();
+
+        let f2 = &q_vec[0] * g + r;
+
+        print_poly("f_2 =", &f2)
         
     }
 }

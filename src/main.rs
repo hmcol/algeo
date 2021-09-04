@@ -13,10 +13,12 @@ fn main() {
 
     q += x(1);
     q += neg_y;
+    
+    println!("pq = ({})({})", p, q);
 
-    println!("pq = ({})({}) = ", p, q);
+    let r = p * q;
 
-    println!("{}", p * q);
+    println!("   = {}", r);
 
     // let mat : Mat<f32> = Mat::new(3, 4,
     //     vec![
