@@ -203,20 +203,33 @@ impl<F: Field> Term<F> {
     /// if, for some reason, term creation need be changed, this could help us
     /// ensure the change is uniform
     #[inline]
-    pub fn new(coef: F, mdeg: MDeg) -> Self {
+    pub fn new_unchecked(coef: F, mdeg: MDeg) -> Self {
         Term { coef, mdeg }
     }
 
+    pub fn new(coef: F, mdeg: MDeg) -> Self {
+        if coef == F::ZERO {
+            Term::zero()
+        } else {
+            Term::new_unchecked(coef, mdeg)
+        }
+    }
+
     pub fn from_coef_degs(coef: F, degs: &[D]) -> Self {
-        Term::new(coef, MDeg::from_vec(degs.into()))
+        if coef == F::ZERO {
+            Term::zero()
+        } else {
+            Term::new_unchecked(coef, MDeg::from_vec(degs.into()))
+        }
     }
 
     /// returns a term with the given coefficient and multidegree `MDeg::0`
     ///
     /// this is used for interpreting elements of the field as possible terms
     /// in polynomials over the field
+    #[inline]
     pub fn constant(coef: F) -> Self {
-        Term::new(coef, MDeg::zero())
+        Term::new_unchecked(coef, MDeg::zero())
     }
 
     /// returns the constant term zero: `Term { coef: 0, mdeg: 0 }`  
@@ -238,7 +251,7 @@ impl<F: Field> Term<F> {
 
     /// returns the monic term of given multidegree: `Term { coef: 1, mdeg }`
     pub fn monic(mdeg: MDeg) -> Self {
-        Term::new(F::ONE, mdeg)
+        Term::new_unchecked(F::ONE, mdeg)
     }
 
     /// returns a term representing a single variable/indeterminate:
@@ -278,8 +291,15 @@ impl<F: Field> Term<F> {
 }
 
 impl<F: Field> Polynomial<F> {
-    pub fn from_vec(v: Vec<Term<F>>) -> Self {
-        Polynomial { terms: v }
+    #[inline]
+    pub fn from_vec(vec: Vec<Term<F>>) -> Self {
+        Polynomial { terms: vec }
+    }
+
+    pub fn from_vec_filtered(vec: Vec<Term<F>>) -> Self {
+        let filtered_vec = vec.into_iter().filter(|term| term.coef != F::ZERO).collect();
+
+        Self::from_vec(filtered_vec)
     }
 
     /// returns a polynomial with no terms
@@ -288,8 +308,14 @@ impl<F: Field> Polynomial<F> {
     }
 
     /// returns a polynomial with only the term `t`
+    #[inline]
     pub fn monomial(t: Term<F>) -> Self {
         Self::from_vec(vec![t])
+    }
+
+    #[inline]
+    pub fn constant(coef: F) -> Self {
+        Self::monomial(Term::constant(coef))
     }
 
     /// returns the polynomial with only the constant term `1`
@@ -424,7 +450,7 @@ impl SubAssign<&MDeg> for MDeg {
         self.degs_mut()
             .zip(rhs.degs())
             .for_each(|(deg_a, deg_b)| deg_a.sub_assign(deg_b));
-        
+
         self.trim_zeros();
     }
 }
@@ -474,7 +500,7 @@ impl<F: Field> AddAssign<&Term<F>> for Polynomial<F> {
             if self.terms[i].coef == F::ZERO {
                 self.terms.remove(i);
             }
-        } else {
+        } else if rhs.coef != F::ZERO {
             self.terms.push(rhs.clone());
         }
     }
@@ -485,7 +511,7 @@ impl<F: Field> Neg for &Term<F> {
     type Output = Term<F>;
 
     fn neg(self) -> Self::Output {
-        Term::new(-self.coef, self.mdeg.clone())
+        Term::new_unchecked(-self.coef, self.mdeg.clone())
     }
 }
 
@@ -629,7 +655,7 @@ pub fn superscript(n: i8) -> String {
         9 => String::from("⁹"),
         n if n >= 10 => superscript(n / 10) + &superscript(n % 10),
         n if n < 0 => String::from("⁻") + &superscript(n.abs()),
-        _ => String::from("[bad deg]")
+        _ => String::from("[bad deg]"),
     }
 }
 
@@ -665,7 +691,11 @@ impl fmt::Display for Polynomial<f64> {
 
         for term in term_iter {
             if term.coef < 0.0 {
-                write!(f, " - {}", Term::new(-term.coef, term.mdeg.clone()))?;
+                write!(
+                    f,
+                    " - {}",
+                    Term::new_unchecked(-term.coef, term.mdeg.clone())
+                )?;
             } else {
                 write!(f, " + {}", term)?;
             }

@@ -1,5 +1,6 @@
 /// elements of the polynomial ring `F[X]`
 mod ring;
+mod div;
 mod ord;
 
 #[doc(inline)]
