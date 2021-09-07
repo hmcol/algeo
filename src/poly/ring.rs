@@ -10,19 +10,15 @@ use crate::core::num::*;
 type I = usize;
 
 /// type of the degrees in a multidegree
+/// 
+/// may need to be changed to `u8` as many of the computations are turning out to require nonnegative degrees
 type D = i8;
 
-/// Wrapper for constant values in the field `F`.
-///
-/// Maybe for implementing operations between all the types of elements in the polynomial ring `F[X]`, namely constants (here), terms, and polynomials.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Const<F>(F);
-
-/// wrapper for `Vec<P>` to represent multidegree of monomial terms in a
-/// multivariate polynomial ring
+/// Multidegree for a monomial; wraps a `Vec<i8>`.
 #[derive(Clone, PartialEq, Eq, Default, Debug, Hash)]
-pub struct MDeg(Vec<D>);
+pub struct MDeg(pub Vec<D>);
 
+/// Wrapper for a coefficient in $F$ and a multidegree.
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Term<F: Field> {
     pub coef: F,
@@ -34,13 +30,6 @@ pub struct Term<F: Field> {
 pub struct Polynomial<F: Field> {
     // pub? yeah pub.
     pub terms: Vec<Term<F>>,
-}
-
-/// possible way to handle interoperability between different types of elements in `F[X]`
-enum _Ring<F: Field> {
-    Const(F),
-    Term(Term<F>),
-    Poly(Polynomial<F>),
 }
 
 // implementations -------------------------------------------------------------
@@ -91,66 +80,27 @@ impl MDeg {
         true
     }
 
-    /// returns the multidegree corresponding the the given slice of tuples
-    ///
-    /// if `tuples` contains the pair `(i, d)`, then the resulting multidegree
-    /// will have the entry `i: d`
-    ///
-    /// filtering zeros ensures equality holds when the only difference between
-    /// two multidegrees is the presence of some zero entries
-    ///
-    /// this should probably be expanded to take any iterator over tuples, and
-    /// any public constructor should pass through this filter
-    pub fn from_pairs(pairs: &[(I, D)]) -> Self {
-        /* let mut vec = Vec::new();
-        let mut i = 0;
-
-        for &(idx, deg) in pairs {
-            if i == idx {
-                vec.push(deg);
-            } else {
-                let diff = idx - i;
-                vec.append(&mut vec![0; diff]);
-                i += diff;
-            }
-        } */
-
-        if let Some(n) = pairs.iter().map(|pair| pair.0).max() {
-            let mut vec = vec![0; n + 1];
-
-            for &(idx, deg) in pairs {
-                vec[idx] = deg;
-            }
-
-            MDeg::from_vec(vec)
-        } else {
-            MDeg::zero()
-        }
-    }
-
-    /// returns multidegree of all ones: `[1 ... 1]`
-    ///
-    /// used for the term `x_1` `x_2` \dots `x_n`, where each indeterminate
-    /// occurs as a factor exactly once
-    #[inline]
-    pub fn ones(n: I) -> Self {
-        MDeg::from_vec(vec![1; n])
-    }
-
     /// returns the multidegree with the sole entry `idx: deg`
     ///
     /// can be used for representing variables/indeterminates:
     /// - the multidegree of `x = x_0` is taken to be `{0: 1}`
     /// - the multidegree of `y = x_1` is taken to be `{1: 1}`
     /// - the multidegree of `z = x_2` is taken to be `{2: 1}`
-    #[inline]
     pub fn var(idx: I, deg: D) -> Self {
-        MDeg::from_pairs(&[(idx, deg)])
+        if deg == 0 {
+            MDeg::zero()
+        } else {
+            let mut degs = vec![0; idx];
+            degs.push(deg);
+
+            MDeg(degs)
+        }
     }
 
     /// returns iterator over the individual degree components
     ///
     /// Should replace return with in-house iterator struct.
+    #[inline]
     pub fn degs(&self) -> std::slice::Iter<D> {
         self.0.iter()
     }
@@ -158,20 +108,23 @@ impl MDeg {
     /// returns mutable iterator over the individual degree components
     ///
     /// Should replace return with in-house iterator struct.
+    #[inline]
     pub fn degs_mut(&mut self) -> std::slice::IterMut<D> {
         self.0.iter_mut()
     }
 
     /// returns the 'total degree' of a multidegree, i.e., the sum of the
     /// individual degree components
+    #[inline]
     pub fn total_deg(&self) -> D {
-        self.0.iter().sum()
+        self.degs().sum()
     }
 
     /// returns the maximum index for which `self` contains an entry.
     ///
     /// in other words, this is the minimum value `n` for which we would
     /// consider `self` to be an element of the polynomial ring in `n` variables
+    #[inline]
     pub fn len(&self) -> I {
         self.0.len()
     }
@@ -203,20 +156,25 @@ impl<F: Field> Term<F> {
     /// if, for some reason, term creation need be changed, this could help us
     /// ensure the change is uniform
     #[inline]
-    pub fn new(coef: F, mdeg: MDeg) -> Self {
+    pub fn new_unchecked(coef: F, mdeg: MDeg) -> Self {
         Term { coef, mdeg }
     }
 
-    pub fn from_coef_degs(coef: F, degs: &[D]) -> Self {
-        Term::new(coef, MDeg::from_vec(degs.into()))
+    pub fn new(coef: F, mdeg: MDeg) -> Self {
+        if coef == F::ZERO {
+            Term::zero()
+        } else {
+            Term::new_unchecked(coef, mdeg)
+        }
     }
 
     /// returns a term with the given coefficient and multidegree `MDeg::0`
     ///
     /// this is used for interpreting elements of the field as possible terms
     /// in polynomials over the field
+    #[inline]
     pub fn constant(coef: F) -> Self {
-        Term::new(coef, MDeg::zero())
+        Term::new_unchecked(coef, MDeg::zero())
     }
 
     /// returns the constant term zero: `Term { coef: 0, mdeg: 0 }`  
@@ -231,6 +189,10 @@ impl<F: Field> Term<F> {
         Term::constant(F::ZERO)
     }
 
+    pub fn is_zero(&self) -> bool {
+        self.coef == F::ZERO
+    }
+
     /// returns the constant term one: `Term { coef: 1, mdeg: 0 }`
     pub fn one() -> Self {
         Term::constant(F::ONE)
@@ -238,7 +200,7 @@ impl<F: Field> Term<F> {
 
     /// returns the monic term of given multidegree: `Term { coef: 1, mdeg }`
     pub fn monic(mdeg: MDeg) -> Self {
-        Term::new(F::ONE, mdeg)
+        Term::new_unchecked(F::ONE, mdeg)
     }
 
     /// returns a term representing a single variable/indeterminate:
@@ -247,7 +209,11 @@ impl<F: Field> Term<F> {
     /// - `var(2, k) = x_2^k = z^k`
     /// - `var(j, k) = x_j^k`
     pub fn var(idx: I, deg: D) -> Self {
-        Term::monic(MDeg::var(idx, deg))
+        if deg == 0 {
+            Term::one()
+        } else {
+            Term::monic(MDeg::var(idx, deg))
+        }
     }
 
     /// maps the polynomial element `self =: f ∈ F[x_1, ..., x_n]` to the
@@ -272,34 +238,66 @@ impl<F: Field> Term<F> {
     }
 
     pub fn divides(&self, other: &Term<F>) -> bool {
-        // should first check that self.coef is nonzero
-        self.mdeg.is_succ(&other.mdeg)
+        self.coef != F::ZERO && self.mdeg.is_succ(&other.mdeg)
     }
 }
 
 impl<F: Field> Polynomial<F> {
-    pub fn from_vec(v: Vec<Term<F>>) -> Self {
-        Polynomial { terms: v }
+    /// Returns the polynomial with terms exactly `vec`.
+    ///
+    /// This does no checking for zero terms
+    #[inline]
+    pub fn new_unchecked(terms: Vec<Term<F>>) -> Self {
+        Polynomial { terms }
     }
 
-    /// returns a polynomial with no terms
+    /// Returns polynomial with terms from `vec`, filtered for zero coefficients
+    ///
+    /// Ideally, this should not be necessary; polynomial computations should
+    /// be careful to keep themselves clean operations should be
+    /// structured such that no additional filtering is necessary except during
+    /// creation
+    pub fn new(terms: Vec<Term<F>>) -> Self {
+        Self::new_unchecked(
+            terms
+                .into_iter()
+                .filter(|term| term.coef != F::ZERO)
+                .collect(),
+        )
+    }
+
+    /// Returns the zero polynomial.
+    ///
+    /// Currently, this is a polynomial with no terms
+    #[inline]
     pub fn zero() -> Self {
-        Self::from_vec(Vec::new())
+        Self::new_unchecked(Vec::new())
+    }
+
+    /// should not be used until we can guarantee that zero terms get filtered
+    #[inline]
+    pub fn is_zero(&self) -> bool {
+        self.terms.is_empty()
     }
 
     /// returns a polynomial with only the term `t`
+    #[inline]
     pub fn monomial(t: Term<F>) -> Self {
-        Self::from_vec(vec![t])
+        Self::new_unchecked(vec![t])
+    }
+
+    pub fn constant(coef: F) -> Self {
+        if coef == F::ZERO {
+            Self::zero()
+        } else {
+            Self::monomial(Term::constant(coef))
+        }
     }
 
     /// returns the polynomial with only the constant term `1`
+    #[inline]
     pub fn one() -> Self {
         Self::monomial(Term::one())
-    }
-
-    /// number of (nonzero) terms
-    pub fn term_count(&self) -> usize {
-        self.terms.len()
     }
 
     /// Returns an iterator over (immutably) borrowed terms: `Item = &Term<F>`.
@@ -322,6 +320,7 @@ impl<F: Field> Polynomial<F> {
     ///
     /// Method panics if `m < n`, i.e., if `x` does not provide values up the
     /// maximum index variable of `self`.
+    #[inline]
     pub fn eval(&self, x: &[F]) -> F {
         self.terms().map(|t| t.eval(x)).sum()
     }
@@ -424,7 +423,7 @@ impl SubAssign<&MDeg> for MDeg {
         self.degs_mut()
             .zip(rhs.degs())
             .for_each(|(deg_a, deg_b)| deg_a.sub_assign(deg_b));
-        
+
         self.trim_zeros();
     }
 }
@@ -466,16 +465,18 @@ impl<F: Field> Sub for &Term<F> {
 
 impl<F: Field> AddAssign<&Term<F>> for Polynomial<F> {
     fn add_assign(&mut self, rhs: &Term<F>) {
-        if let Some(i) = self.terms_mut().position(|t| t.mdeg == rhs.mdeg) {
-            self.terms[i].coef += rhs.coef;
+        if rhs.coef != F::ZERO {
+            if let Some(i) = self.terms_mut().position(|t| t.mdeg == rhs.mdeg) {
+                self.terms[i].coef += rhs.coef;
 
-            // should be replaced with proper field zero checking
-            // ya know, floating point error and stuff
-            if self.terms[i].coef == F::ZERO {
-                self.terms.remove(i);
+                // should be replaced with proper field zero checking
+                // ya know, floating point error and stuff
+                if self.terms[i].coef == F::ZERO {
+                    self.terms.remove(i);
+                }
+            } else {
+                self.terms.push(rhs.clone());
             }
-        } else {
-            self.terms.push(rhs.clone());
         }
     }
 }
@@ -485,22 +486,24 @@ impl<F: Field> Neg for &Term<F> {
     type Output = Term<F>;
 
     fn neg(self) -> Self::Output {
-        Term::new(-self.coef, self.mdeg.clone())
+        Term::new_unchecked(-self.coef, self.mdeg.clone())
     }
 }
 
 impl<F: Field> SubAssign<&Term<F>> for Polynomial<F> {
     fn sub_assign(&mut self, rhs: &Term<F>) {
-        if let Some(i) = self.terms_mut().position(|t| t.mdeg == rhs.mdeg) {
-            self.terms[i].coef -= rhs.coef;
+        if rhs.coef != F::ZERO {
+            if let Some(i) = self.terms_mut().position(|t| t.mdeg == rhs.mdeg) {
+                self.terms[i].coef -= rhs.coef;
 
-            // should be replaced with proper field zero checking
-            // ya know, floating point error and stuff
-            if self.terms[i].coef == F::ZERO {
-                self.terms.remove(i);
+                // should be replaced with proper field zero checking
+                // ya know, floating point error and stuff
+                if self.terms[i].coef == F::ZERO {
+                    self.terms.remove(i);
+                }
+            } else {
+                self.terms.push(-rhs);
             }
-        } else {
-            self.terms.push(-rhs);
         }
     }
 }
@@ -557,11 +560,11 @@ macro_rules! var_fn {
     };
     (@doc_of $var:expr, $idx:expr) => {
         concat!(
-            "Shorthand for `",
+            "Shorthand for $",
             $var,
-            "`; i.e., the indeterminate of index `",
+            " = x_",
             $idx,
-            "` in `F[X]`.\n\n",
+            "\\in F[x_1, \\dots, x_n]$.\n\n",
             "As a Term, `",
             $var,
             "(d)` is monic with multidegree `{ ",
@@ -580,9 +583,10 @@ macro_rules! var_fn {
 var_fn! { x -> 0 }
 var_fn! { y -> 1 }
 var_fn! { z -> 2 }
-var_fn! { u -> 3 }
-var_fn! { v -> 4 }
-var_fn! { w -> 5 }
+var_fn! { w -> 3 }
+var_fn! { u -> 4 }
+var_fn! { v -> 5 }
+
 
 // display ---------------------------------------------------------------------
 
@@ -629,13 +633,7 @@ pub fn superscript(n: i8) -> String {
         9 => String::from("⁹"),
         n if n >= 10 => superscript(n / 10) + &superscript(n % 10),
         n if n < 0 => String::from("⁻") + &superscript(n.abs()),
-        _ => String::from("[bad deg]")
-    }
-}
-
-impl<F: Field> fmt::Display for Const<F> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.0)
+        _ => String::from("[bad deg]"),
     }
 }
 
@@ -665,7 +663,11 @@ impl fmt::Display for Polynomial<f64> {
 
         for term in term_iter {
             if term.coef < 0.0 {
-                write!(f, " - {}", Term::new(-term.coef, term.mdeg.clone()))?;
+                write!(
+                    f,
+                    " - {}",
+                    Term::new_unchecked(-term.coef, term.mdeg.clone())
+                )?;
             } else {
                 write!(f, " + {}", term)?;
             }
@@ -685,12 +687,10 @@ mod tests {
     #[test]
     fn test_mdeg() {
         let zero = MDeg::zero();
-        let ones = MDeg::ones(5);
 
         println!("zero = {}", zero);
-        println!("ones = {}", ones);
 
-        let a = MDeg::from_pairs(&[(0, 3), (3, 5), (4, 2)]);
+        /* let a = MDeg::from_pairs(&[(0, 3), (3, 5), (4, 2)]);
         let b = MDeg::from_pairs(&[(0, 1), (1, 2), (4, 1), (5, 2)]);
 
         let c = MDeg::from_pairs(&[(0, 4), (1, 2), (3, 5), (4, 3), (5, 2)]);
@@ -702,7 +702,7 @@ mod tests {
 
         println!("\nc = {}", d);
 
-        assert_eq!(a + b, c);
+        assert_eq!(a + b, c); */
     }
 
     #[test]
@@ -750,7 +750,7 @@ mod tests {
         println!("q = {}", q);
         println!("r = {}", r);
 
-        let f = Polynomial::from_vec(vec![p, q, r]);
+        let f = Polynomial::new_unchecked(vec![p, q, r]);
 
         println!("\nf = {}", f);
 
@@ -758,7 +758,7 @@ mod tests {
         let q = trm(7.0, [4, 0, 2]);
         let r = trm(13.0, [0, 5, 6]);
 
-        let g = Polynomial::zero() + p + q + r;
+        let g = p + q + r;
 
         println!("\nf = {}", g);
     }

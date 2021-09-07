@@ -1,43 +1,69 @@
-use std::{cmp::Ordering, marker::PhantomData};
+use std::cmp::Ordering;
 
-use itertools::Itertools;
+use super::MDeg;
 
-use super::{MDeg, Polynomial as Poly, Term};
-use crate::core::num::Field;
+pub trait MonomialOrder {
+    fn cmp(a: &MDeg, b: &MDeg) -> Ordering;
+}
 
 /// The [Lexicographic Order](https://w.wiki/3zwi) on multidegrees.
 ///
 /// if a != b, compares first unequal degrees from the left
 ///
 /// e.g., a < b iff ∃k s.t. a_k < b_k and a_i = b_i, for i = 0,...,k-1
-pub fn lex(a: &MDeg, b: &MDeg) -> Ordering {
-    for (deg_a, deg_b) in a.degs().zip(b.degs()) {
-        match deg_a.cmp(deg_b) {
-            Ordering::Equal => continue,
-            lt_or_gt => return lt_or_gt,
+pub struct Lex;
+
+impl MonomialOrder for Lex {
+    fn cmp(a: &MDeg, b: &MDeg) -> Ordering {
+        let mut iter_a = a.degs();
+        let mut iter_b = b.degs();
+
+        loop {
+            match (iter_a.next(), iter_b.next()) {
+                (None, None)  => break Ordering::Equal,
+                (None, Some(_)) => break Ordering::Less, // might need to check rhs nonzero
+                (Some(_), None) => break Ordering::Greater,
+                (Some(deg_a), Some(deg_b)) => {
+                    match deg_a.cmp(deg_b) {
+                        Ordering::Equal => continue,
+                        lt_or_gt => break lt_or_gt,
+                    }
+                },
+            }
         }
+
+        /* for (deg_a, deg_b) in a.degs().zip(b.degs()) {
+            match deg_a.cmp(deg_b) {
+                Ordering::Equal => continue,
+                lt_or_gt => return lt_or_gt,
+            }
+        }
+        grad(a, b) */
     }
-    grad(a, b)
 }
 
 /// The Reverse [Lexicographic Order](https://w.wiki/3zwi) order on
 /// multidegrees.
 ///
 /// This runs the lexicographic order with the indices reversed; not to be
-/// confused with simply calling `Ordering::reverse` on the result of [`lex`].
-pub fn revlex(a: &MDeg, b: &MDeg) -> Ordering {
-    match a.len().cmp(&b.len()) {
-        Ordering::Equal => {
-            for (deg_a, deg_b) in a.degs().zip(b.degs()).rev() {
-                match deg_a.cmp(deg_b) {
-                    Ordering::Equal => continue,
-                    lt_or_gt => return lt_or_gt,
+/// confused with simply calling `Ordering::reverse` on the result of [`Lex::cmp`].
+pub struct RevLex;
+
+impl MonomialOrder for RevLex {
+    fn cmp(a: &MDeg, b: &MDeg) -> Ordering {
+        match a.len().cmp(&b.len()) {
+            Ordering::Equal => {
+                for (deg_a, deg_b) in a.degs().zip(b.degs()).rev() {
+                    match deg_a.cmp(deg_b) {
+                        Ordering::Equal => continue,
+                        lt_or_gt => return lt_or_gt,
+                    }
                 }
             }
+            lt_or_gt => return lt_or_gt,
         }
-        lt_or_gt => return lt_or_gt,
+        Ordering::Equal
     }
-    Ordering::Equal
 }
 
 /// The graded order on multidegrees.
@@ -55,10 +81,14 @@ pub fn grad(a: &MDeg, b: &MDeg) -> Ordering {
 /// The [Graded Lexicographic Order](https://w.wiki/3zwp) on multidegrees.
 ///
 /// applies the graded order; if equal, applies lexicographic
-pub fn grlex(a: &MDeg, b: &MDeg) -> Ordering {
-    match grad(a, b) {
-        Ordering::Equal => lex(a, b),
-        lt_or_gt => lt_or_gt,
+pub struct GrLex;
+
+impl MonomialOrder for GrLex {
+    fn cmp(a: &MDeg, b: &MDeg) -> Ordering {
+        match grad(a, b) {
+            Ordering::Equal => Lex::cmp(a, b),
+            lt_or_gt => lt_or_gt,
+        }
     }
 }
 
@@ -66,10 +96,14 @@ pub fn grlex(a: &MDeg, b: &MDeg) -> Ordering {
 /// multidegrees.
 ///
 /// applies the graded order; if equal, applies reverse lexicographic with the result negated
-pub fn grevlex(a: &MDeg, b: &MDeg) -> Ordering {
-    match grad(a, b) {
-        Ordering::Equal => revlex(a, b).reverse(),
-        lt_or_gt => lt_or_gt,
+pub struct GRevLex;
+
+impl MonomialOrder for GRevLex {
+    fn cmp(a: &MDeg, b: &MDeg) -> Ordering {
+        match grad(a, b) {
+            Ordering::Equal => RevLex::cmp(a, b).reverse(),
+            lt_or_gt => lt_or_gt,
+        }
     }
 }
 
@@ -79,102 +113,13 @@ pub fn grevlex(a: &MDeg, b: &MDeg) -> Ordering {
 ///
 struct _PlaceHolder;
 
-#[derive(Clone, Copy)]
-struct DivisionComputer<F: Field> {
-    order: fn(&MDeg, &MDeg) -> Ordering,
-    _field_marker: PhantomData<F>,
-}
-
-impl<F: Field> DivisionComputer<F> {
-    pub fn new(order: fn(&MDeg, &MDeg) -> Ordering) -> Self {
-        DivisionComputer {
-            order: order,
-            _field_marker: PhantomData,
-        }
-    }
-
-    pub fn divide(&self, f: &Poly<F>, divs: &[Poly<F>]) -> (Poly<F>, Vec<Poly<F>>) {
-        let m = divs.len();
-        let mut quotients = vec![Poly::<F>::zero(); m];
-        let mut remainder = Poly::<F>::zero();
-
-        let mut f = f.clone();
-
-        'outer: loop {
-            if let Some(lt_f) = self.leading_term(&f).cloned() {
-                // hack to ignore zero coefficients
-                // - will not work in case of floating-point error
-                // - should be feature of polynomials to cull zeros
-                if lt_f.coef == F::ZERO {
-                    f.terms.pop();
-                    continue;
-                }
-
-                // f still has (nonzero) terms
-
-                for (g, q) in divs.iter().zip(quotients.iter_mut()) {
-                    if let Some(lt_g) = self.leading_term(&g) {
-                        if lt_g.divides(&lt_f) {
-                            // case 1: LT(f) is divisible by some LT(g_i)
-                            // - use LT(g_i) to reduce the degree of f
-
-                            // a_i is the term such that LT(f) = a_i * LT(g_i)
-                            let a = &(&lt_f / lt_g);
-                            // add a_i to g_i's quotient, q_i
-                            *q += a;
-                            // eliminate LT(f) with a_i * LT(g_i)
-                            f -= a * g;
-
-                            continue 'outer;
-                        }
-                    }
-                }
-
-                // case 2: LT(f) is not divisible by any LT(g_1), ..., LT(g_m)
-                // - subtract the leading term of f and add it to the remainder
-
-                // sort the terms of f by the current order
-                f.terms.sort_by(|s, t| (self.order)(&s.mdeg, &t.mdeg));
-
-                // ofter sorting, last term of f is the leading term, LT(f)
-                if let Some(lt_f) = f.terms.pop() {
-                    // first
-
-                    remainder += lt_f;
-                }
-            } else {
-                // f has no more (nonzero) terms; division is done
-                break;
-            }
-        }
-
-        // return
-        (remainder, quotients)
-    }
-
-    pub fn sort_terms(&self, f: &Poly<F>) -> Poly<F> {
-        Poly::from_vec(
-            f.terms()
-                .sorted_by(|s, t| (self.order)(&s.mdeg, &t.mdeg))
-                .cloned()
-                .collect(),
-        )
-    }
-
-    pub fn leading_term<'a>(&self, f: &'a Poly<F>) -> Option<&'a Term<F>> {
-        f.terms().max_by(|s, t| (self.order)(&s.mdeg, &t.mdeg))
-    }
-}
-
 #[cfg(test)]
-mod tests {
+mod order_tests {
     use itertools::Itertools;
     use std::cmp::Ordering;
 
-    use super::DivisionComputer;
-    use crate::poly::*;
-
-    type Poly = Polynomial<f64>;
+    use crate::poly::MDeg;
+    use super::*;
 
     macro_rules! mdeg {
         ($( $deg:expr ),* $(,)?) => {
@@ -182,7 +127,7 @@ mod tests {
         };
     }
 
-    fn dbg_suite(ord: fn(&MDeg, &MDeg) -> Ordering) {
+    fn _dbg_suite(ord: fn(&MDeg, &MDeg) -> Ordering) {
         let d = |s: &[i8]| format!("{:?}{:?}{:?}", s[0], s[1], s[2]);
 
         let c = |o: Ordering| match o {
@@ -203,102 +148,116 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_lex() {
-        use super::lex;
-
-        assert_eq!(lex(mdeg![0, 0, 0], mdeg![0, 0, 0]), Ordering::Equal);
-        assert_eq!(lex(mdeg![1, 0, 0], mdeg![1, 0, 0]), Ordering::Equal);
-        assert_eq!(lex(mdeg![1, 2, 3], mdeg![1, 2, 3]), Ordering::Equal);
-        assert_eq!(lex(mdeg![0, 0, 1], mdeg![0, 0, 1]), Ordering::Equal);
-
-        assert_eq!(lex(mdeg![0, 1, 0], mdeg![1, 0, 1]), Ordering::Less);
-        assert_eq!(lex(mdeg![0, 0, 1], mdeg![1, 0, 0]), Ordering::Less);
-
-        assert_eq!(lex(mdeg![1, 0, 0], mdeg![0, 1, 0]), Ordering::Greater);
-        assert_eq!(lex(mdeg![2, 2, 0], mdeg![0, 0, 1]), Ordering::Greater);
-
-        // dbg_suite(lex);
+    #[cfg(test)]
+    macro_rules! assert_ord_equal {
+        ($ord:expr) => {
+            assert_eq!($ord, Ordering::Equal)
+        };
     }
 
-    #[test]
-    fn test_revlex() {
-        use super::revlex;
+    #[cfg(test)]
+    macro_rules! assert_ord_less {
+        ($ord:expr) => {
+            assert_eq!($ord, Ordering::Less)
+        };
+    }
 
-        assert_eq!(revlex(mdeg![0, 0, 0], mdeg![0, 0, 0]), Ordering::Equal);
-        assert_eq!(revlex(mdeg![1, 0, 0], mdeg![1, 0, 0]), Ordering::Equal);
-        assert_eq!(revlex(mdeg![1, 2, 3], mdeg![1, 2, 3]), Ordering::Equal);
-        assert_eq!(revlex(mdeg![0, 0, 1], mdeg![0, 0, 1]), Ordering::Equal);
-
-        assert_eq!(revlex(mdeg![1, 0, 0], mdeg![0, 1, 0]), Ordering::Less);
-        assert_eq!(revlex(mdeg![0, 1, 0], mdeg![1, 0, 1]), Ordering::Less);
-        assert_eq!(revlex(mdeg![2, 2, 0], mdeg![0, 0, 1]), Ordering::Less);
-
-        assert_eq!(revlex(mdeg![0, 0, 1], mdeg![1, 0, 0]), Ordering::Greater);
-
-        // suite(revlex);
+    #[cfg(test)]
+    macro_rules! assert_ord_greater {
+        ($ord:expr) => {
+            assert_eq!($ord, Ordering::Greater)
+        };
     }
 
     #[test]
     fn test_grad() {
-        use super::grad;
 
-        assert_eq!(grad(mdeg![0, 0, 0], mdeg![0, 0, 0]), Ordering::Equal);
-        assert_eq!(grad(mdeg![1, 0, 0], mdeg![1, 0, 0]), Ordering::Equal);
-        assert_eq!(grad(mdeg![1, 2, 3], mdeg![1, 2, 3]), Ordering::Equal);
-        assert_eq!(grad(mdeg![0, 0, 1], mdeg![0, 0, 1]), Ordering::Equal);
-        assert_eq!(grad(mdeg![1, 0, 0], mdeg![0, 1, 0]), Ordering::Equal);
 
-        assert_eq!(grad(mdeg![2, 2, 0], mdeg![1, 1, 5]), Ordering::Less);
-        assert_eq!(grad(mdeg![1, 0, 0], mdeg![0, 1, 1]), Ordering::Less);
+        assert_ord_equal!(grad(mdeg![0, 0, 0], mdeg![0, 0, 0]));
+        assert_ord_equal!(grad(mdeg![1, 0, 0], mdeg![1, 0, 0]));
+        assert_ord_equal!(grad(mdeg![1, 2, 3], mdeg![1, 2, 3]));
+        assert_ord_equal!(grad(mdeg![0, 0, 1], mdeg![0, 0, 1]));
+        assert_ord_equal!(grad(mdeg![1, 0, 0], mdeg![0, 1, 0]));
 
-        assert_eq!(grad(mdeg![2, 2, 0], mdeg![0, 0, 1]), Ordering::Greater);
-        assert_eq!(grad(mdeg![0, 0, 2], mdeg![1, 0, 0]), Ordering::Greater);
-        assert_eq!(grad(mdeg![0, 3, 0], mdeg![1, 0, 1]), Ordering::Greater);
+        assert_ord_less!(grad(mdeg![2, 2, 0], mdeg![1, 1, 5]));
+        assert_ord_less!(grad(mdeg![1, 0, 0], mdeg![0, 1, 1]));
+
+        assert_ord_greater!(grad(mdeg![2, 2, 0], mdeg![0, 0, 1]));
+        assert_ord_greater!(grad(mdeg![0, 0, 2], mdeg![1, 0, 0]));
+        assert_ord_greater!(grad(mdeg![0, 3, 0], mdeg![1, 0, 1]));
 
         // dbg_suite(grad);
     }
 
     #[test]
+    fn test_lex() {
+        assert_ord_equal!(Lex::cmp(mdeg![0, 0, 0], mdeg![0, 0, 0]));
+        assert_ord_equal!(Lex::cmp(mdeg![1, 0, 0], mdeg![1, 0, 0]));
+        assert_ord_equal!(Lex::cmp(mdeg![1, 2, 3], mdeg![1, 2, 3]));
+        assert_ord_equal!(Lex::cmp(mdeg![0, 0, 1], mdeg![0, 0, 1]));
+
+        assert_ord_less!(Lex::cmp(mdeg![0, 1, 0], mdeg![1, 0, 1]));
+        assert_ord_less!(Lex::cmp(mdeg![0, 0, 1], mdeg![1, 0, 0]));
+
+        assert_ord_greater!(Lex::cmp(mdeg![1, 0, 0], mdeg![0, 1, 0]));
+        assert_ord_greater!(Lex::cmp(mdeg![2, 2, 0], mdeg![0, 0, 1]));
+
+        // dbg_suite(Lex::cmp);
+    }
+
+    #[test]
+    fn test_revlex() {
+        assert_ord_equal!(RevLex::cmp(mdeg![0, 0, 0], mdeg![0, 0, 0]));
+        assert_ord_equal!(RevLex::cmp(mdeg![1, 0, 0], mdeg![1, 0, 0]));
+        assert_ord_equal!(RevLex::cmp(mdeg![1, 2, 3], mdeg![1, 2, 3]));
+        assert_ord_equal!(RevLex::cmp(mdeg![0, 0, 1], mdeg![0, 0, 1]));
+
+        assert_ord_less!(RevLex::cmp(mdeg![1, 0, 0], mdeg![0, 1, 0]));
+        assert_ord_less!(RevLex::cmp(mdeg![0, 1, 0], mdeg![1, 0, 1]));
+        assert_ord_less!(RevLex::cmp(mdeg![2, 2, 0], mdeg![0, 0, 1]));
+
+        assert_ord_greater!(RevLex::cmp(mdeg![0, 0, 1], mdeg![1, 0, 0]));
+
+        // suite(RevLex::cmp);
+    }
+
+    #[test]
     fn test_grlex() {
-        use super::grlex;
+        assert_ord_equal!(GrLex::cmp(mdeg![0, 0, 0], mdeg![0, 0, 0]));
+        assert_ord_equal!(GrLex::cmp(mdeg![1, 0, 0], mdeg![1, 0, 0]));
+        assert_ord_equal!(GrLex::cmp(mdeg![1, 2, 3], mdeg![1, 2, 3]));
+        assert_ord_equal!(GrLex::cmp(mdeg![0, 0, 1], mdeg![0, 0, 1]));
 
-        assert_eq!(grlex(mdeg![0, 0, 0], mdeg![0, 0, 0]), Ordering::Equal);
-        assert_eq!(grlex(mdeg![1, 0, 0], mdeg![1, 0, 0]), Ordering::Equal);
-        assert_eq!(grlex(mdeg![1, 2, 3], mdeg![1, 2, 3]), Ordering::Equal);
-        assert_eq!(grlex(mdeg![0, 0, 1], mdeg![0, 0, 1]), Ordering::Equal);
+        assert_ord_less!(GrLex::cmp(mdeg![2, 2, 0], mdeg![1, 1, 5]));
+        assert_ord_less!(GrLex::cmp(mdeg![0, 1, 1], mdeg![1, 1, 0]));
+        assert_ord_less!(GrLex::cmp(mdeg![0, 3, 0], mdeg![1, 0, 2]));
 
-        assert_eq!(grlex(mdeg![2, 2, 0], mdeg![1, 1, 5]), Ordering::Less);
-        assert_eq!(grlex(mdeg![0, 1, 1], mdeg![1, 1, 0]), Ordering::Less);
-        assert_eq!(grlex(mdeg![0, 3, 0], mdeg![1, 0, 2]), Ordering::Less);
+        assert_ord_greater!(GrLex::cmp(mdeg![1, 0, 0], mdeg![0, 1, 0]));
+        assert_ord_greater!(GrLex::cmp(mdeg![2, 2, 0], mdeg![0, 0, 1]));
+        assert_ord_greater!(GrLex::cmp(mdeg![0, 0, 2], mdeg![1, 0, 0]));
+        assert_ord_greater!(GrLex::cmp(mdeg![3, 0, 0], mdeg![1, 0, 2]));
 
-        assert_eq!(grlex(mdeg![1, 0, 0], mdeg![0, 1, 0]), Ordering::Greater);
-        assert_eq!(grlex(mdeg![2, 2, 0], mdeg![0, 0, 1]), Ordering::Greater);
-        assert_eq!(grlex(mdeg![0, 0, 2], mdeg![1, 0, 0]), Ordering::Greater);
-        assert_eq!(grlex(mdeg![3, 0, 0], mdeg![1, 0, 2]), Ordering::Greater);
-
-        // dbg_suite(grlex);
+        // dbg_suite(GrLex::cmp);
     }
 
     #[test]
     fn test_grevlex() {
-        use super::grevlex;
+        use super::GRevLex;
 
-        assert_eq!(grevlex(mdeg![0, 0, 0], mdeg![0, 0, 0]), Ordering::Equal);
-        assert_eq!(grevlex(mdeg![1, 0, 0], mdeg![1, 0, 0]), Ordering::Equal);
-        assert_eq!(grevlex(mdeg![1, 2, 3], mdeg![1, 2, 3]), Ordering::Equal);
-        assert_eq!(grevlex(mdeg![0, 0, 1], mdeg![0, 0, 1]), Ordering::Equal);
-        
+        assert_ord_equal!(GRevLex::cmp(mdeg![0, 0, 0], mdeg![0, 0, 0]));
+        assert_ord_equal!(GRevLex::cmp(mdeg![1, 0, 0], mdeg![1, 0, 0]));
+        assert_ord_equal!(GRevLex::cmp(mdeg![1, 2, 3], mdeg![1, 2, 3]));
+        assert_ord_equal!(GRevLex::cmp(mdeg![0, 0, 1], mdeg![0, 0, 1]));
 
-        assert_eq!(grevlex(mdeg![2, 2, 0], mdeg![1, 1, 5]), Ordering::Less);
-        assert_eq!(grevlex(mdeg![1, 0, 0], mdeg![0, 1, 1]), Ordering::Less);
+        assert_ord_less!(GRevLex::cmp(mdeg![2, 2, 0], mdeg![1, 1, 5]));
+        assert_ord_less!(GRevLex::cmp(mdeg![1, 0, 0], mdeg![0, 1, 1]));
 
-        assert_eq!(grevlex(mdeg![2, 2, 0], mdeg![0, 0, 1]), Ordering::Greater);
-        assert_eq!(grevlex(mdeg![0, 0, 2], mdeg![1, 0, 0]), Ordering::Greater);
-        assert_eq!(grevlex(mdeg![0, 3, 0], mdeg![1, 0, 1]), Ordering::Greater);
-        assert_eq!(grevlex(mdeg![1, 0, 0], mdeg![0, 1, 0]), Ordering::Greater);
+        assert_ord_greater!(GRevLex::cmp(mdeg![2, 2, 0], mdeg![0, 0, 1]));
+        assert_ord_greater!(GRevLex::cmp(mdeg![0, 0, 2], mdeg![1, 0, 0]));
+        assert_ord_greater!(GRevLex::cmp(mdeg![0, 3, 0], mdeg![1, 0, 1]));
+        assert_ord_greater!(GRevLex::cmp(mdeg![1, 0, 0], mdeg![0, 1, 0]));
 
-        // dbg_suite(grevlex);
+        // dbg_suite(GRevLex::cmp);
     }
 
     #[test]
@@ -316,8 +275,8 @@ mod tests {
         }
 
         for (a, b) in vecs.iter().cartesian_product(&vecs) {
-            let grlex = super::grlex(a, b);
-            let grevlex = super::grevlex(a, b);
+            let grlex = GrLex::cmp(a, b);
+            let grevlex = GRevLex::cmp(a, b);
 
             if grlex != grevlex {
                 println!(
@@ -329,79 +288,5 @@ mod tests {
                 );
             }
         }
-    }
-
-    macro_rules! pp {
-        ($poly:expr) => {
-            println!("{} = {}", stringify!($poly), &$poly);
-        };
-    }
-
-    macro_rules! pps {
-        ($polys:expr) => {
-            for i in 0..($polys.len()) {
-                println!("{}[{}] = {}", stringify!($polys), i, &$polys[i]);
-            }
-        };
-    }
-
-    #[test]
-    fn division() {
-        let c = |coef| Poly::from(Term::<f64>::from(coef));
-        let x = |d| Poly::from(x::<f64>(d));
-        let y = |d| Poly::from(y::<f64>(d));
-        // let z = |d| Poly::from(z::<f64>(d));
-        
-        let dc = DivisionComputer::<f64>::new(lex);
-        let div = |f, divs| dc.divide(f, divs);
-
-        let f = c(1.0) * x(3) * y(3) + c(3.0) * x(2) * y(4);
-        let g = [c(1.0) * x(1) * y(4)];
-
-        pp!(f);
-        pps!(g);
-        println!();
-
-        let (r, q) = div(&f, &g);
-        pp!(r);
-        pps!(q);
-        println!();
-
-        let f2 = &q[0] * &g[0] + r;
-        pp!(f2);
-
-        println!("\n------------------------------\n");
-
-        let f = x(2) + x(1) - y(2) + y(1);
-        let g = [x(1) * y(1) + c(1.0), x(1) + y(1)];
-
-        pp!(f);
-        pps!(g);
-        println!();
-
-        let (r, q) = div(&f, &g);
-        pp!(r);
-        pps!(q);
-        println!();
-
-        let f2 = &q[0] * &g[0] + &q[1] * &g[1] + r;
-        pp!(f2);
-
-        println!("\n------------------------------\n");
-
-        let f = x(2) + x(1) - y(2) + y(1);
-        let g = [x(1) + y(1), x(1) * y(1) + c(1.0)];
-
-        pp!(f);
-        pps!(g);
-        println!();
-
-        let (r, q) = div(&f, &g);
-        pp!(r);
-        pps!(q);
-        println!();
-
-        let f2 = &q[0] * &g[0] + &q[1] * &g[1] + r;
-        pp!(f2);
     }
 }
