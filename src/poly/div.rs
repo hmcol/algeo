@@ -1,90 +1,125 @@
+use std::marker::PhantomData;
+
 use itertools::Itertools;
 
 use crate::core::num::Field;
 
 use super::ord::MonomialOrder;
-use super::{Polynomial, Term};
+use super::{MDeg, Polynomial, Term};
 
-pub fn sort_terms<MO: MonomialOrder, F: Field>(f: &Polynomial<F>) -> Polynomial<F> {
-    Polynomial::from_vec(
-        f.terms()
-            .sorted_by(|s, t| MO::cmp(&s.mdeg, &t.mdeg))
-            .cloned()
-            .collect(),
-    )
+/// Handler for computations related to finding Gröbner bases.
+///
+/// The field `F` is the field of the polynomials it works over and the monomial order `O` is what it uses to determine leading terms
+pub struct Computer<F: Field, O: MonomialOrder> {
+    _marker: PhantomData<(F, O)>,
 }
 
-pub fn leading_term<'a, MO: MonomialOrder, F: Field>(f: &'a Polynomial<F>) -> Option<&'a Term<F>> {
-    f.terms().max_by(|s, t| MO::cmp(&s.mdeg, &t.mdeg))
-}
+impl<F: Field, O: MonomialOrder> Computer<F, O> {
+    /// Returns the polynomial with the same terms as `f`, sorted by the monomial order `Self::O`.
+    pub fn sort_terms(f: &Polynomial<F>) -> Polynomial<F> {
+        Polynomial::new_unchecked(
+            f.terms()
+                .sorted_by(|s, t| O::cmp(&s.mdeg, &t.mdeg))
+                .cloned()
+                .collect(),
+        )
+    }
 
+    /// Returns the leading term of `f`, under the monomial order `Self::O`.
+    pub fn leading_term(f: &'_ Polynomial<F>) -> Option<&'_ Term<F>> {
+        f.terms().max_by(|s, t| O::cmp(&s.mdeg, &t.mdeg))
+    }
 
-fn divide<MO: MonomialOrder, F: Field>(f: &Polynomial<F>, divs: &[Polynomial<F>]) -> (Polynomial<F>, Vec<Polynomial<F>>) {
-    let m = divs.len();
+    /// Performs general polynomial division on `f` with the divisors `divs = [g_1, ..., g_m]`, returns `(r, [q_1, ..., q_m])`, where `r` is the remainder and `q_1, ..., q_m` are the quotients, so that `f = q_1g_1 + ... + q_mg_m`.
+    ///
+    /// If it happens that `r = 0`, then we can conclude `f` is in the ideal `I = <g_1, ..., g_m>`.
+    ///
+    /// If the divisors form a Gröbner basis for `I`, then the order of the `g`'s does not affect the result. In particular `r = 0` if and only if `f` in `I`.
+    ///
+    /// If the divisors do no form a Gröbner basis, this is not necessarily the case.
+    pub fn divide(
+        f: &Polynomial<F>,
+        divs: &[Polynomial<F>],
+    ) -> (Polynomial<F>, Vec<Polynomial<F>>) {
+        let m = divs.len();
         let mut quotients = vec![Polynomial::<F>::zero(); m];
         let mut remainder = Polynomial::<F>::zero();
 
         let mut f = f.clone();
+        // let divs: Vec<Polynomial<F>> = divs.iter().filter(|g| !g.is_zero()).cloned().collect();
 
-        'outer: loop {
-            if let Some(lt_f) = leading_term::<MO, F>(&f).cloned() {
-                // hack to ignore zero coefficients
-                // - will not work in case of floating-point error
-                // - should be feature of polynomials to cull zeros
-                if lt_f.coef == F::ZERO {
-                    f.terms.pop();
-                    continue;
-                }
+        'outer: while let Some(lt_f) = Self::leading_term(&f).cloned() {
+            // maybe not necessary anymore? not sure
+            // hack to ignore zero coefficients
+            // - will not work in case of floating-point error
+            // - should be feature of Polys to cull zeros
+            /* if lt_f.coef == F::ZERO {
+                f.terms.pop();
+                continue;
+            } */
 
-                // f still has (nonzero) terms
+            // f still has (nonzero) terms
 
-                for (g, q) in divs.iter().zip(quotients.iter_mut()) {
-                    if let Some(lt_g) = leading_term::<MO, F>(&g) {
-                        if lt_g.divides(&lt_f) {
-                            // case 1: LT(f) is divisible by some LT(g_i)
-                            // - use LT(g_i) to reduce the degree of f
+            for (g, q) in divs.iter().zip(quotients.iter_mut()) {
+                if let Some(lt_g) = Self::leading_term(&g) {
+                    if lt_g.divides(&lt_f) {
+                        // case 1: LT(f) is divisible by some LT(g_i)
+                        // - use LT(g_i) to reduce the degree of f
 
-                            // a_i is the term such that LT(f) = a_i * LT(g_i)
-                            let a = &(&lt_f / lt_g);
-                            // add a_i to g_i's quotient, q_i
-                            *q += a;
-                            // eliminate LT(f) with a_i * LT(g_i)
-                            f -= a * g;
+                        // a_i is the term such that LT(f) = a_i * LT(g_i)
+                        let a = &(&lt_f / lt_g);
+                        // add a_i to g_i's quotient, q_i
+                        *q += a;
+                        // eliminate LT(f) with a_i * LT(g_i)
+                        f -= a * g;
 
-                            continue 'outer;
-                        }
+                        continue 'outer;
                     }
                 }
+            }
 
-                // case 2: LT(f) is not divisible by any LT(g_1), ..., LT(g_m)
-                // - subtract the leading term of f and add it to the remainder
+            // case 2: LT(f) is not divisible by any LT(g_1), ..., LT(g_m)
+            // - subtract the leading term of f and add it to the remainder
 
-                // sort the terms of f by the current order
-                f.terms.sort_by(|s, t| MO::cmp(&s.mdeg, &t.mdeg));
+            // sort the terms of f by the current order
+            f.terms.sort_by(|s, t| O::cmp(&s.mdeg, &t.mdeg));
 
-                // ofter sorting, last term of f is the leading term, LT(f)
-                if let Some(lt_f) = f.terms.pop() {
-                    // first
+            // ofter sorting, last term of f is the leading term, LT(f)
+            if let Some(lt_f) = f.terms.pop() {
+                // first
 
-                    remainder += lt_f;
-                }
-            } else {
-                // f has no more (nonzero) terms; division is done
-                break;
+                remainder += lt_f;
             }
         }
 
         // return
         (remainder, quotients)
-}
+    }
 
+    pub fn monic_lcm(s: &Term<F>, t: &Term<F>) -> Term<F> {
+        if s.coef == F::ZERO && t.coef == F::ZERO {
+            return Term::zero();
+        }
+
+        Term::monic(MDeg(
+            s.mdeg
+                .degs()
+                .zip(t.mdeg.degs())
+                .map(|(a, b)| a.min(b))
+                .cloned()
+                .collect(),
+        ))
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use std::ops::Add;
 
     use super::*;
-    use crate::poly::*;
+    use crate::poly::{MDeg, Polynomial, Term};
+
+    use super::super::ord::Lex;
 
     type Poly = Polynomial<f64>;
 
@@ -105,14 +140,36 @@ mod tests {
     }
 
     #[allow(unused)]
+    #[test]
     fn dbg_stuff() {
+        use crate::poly::{x, y, z};
+
         let c = |coef| Poly::constant(coef);
         let x = |d| Poly::from(x::<f64>(d));
         let y = |d| Poly::from(y::<f64>(d));
         let z = |d| Poly::from(z::<f64>(d));
 
+        /* let f = y(1);
 
-        let f = <Poly as Add<Poly>>::add(x(1), y(1));
+        let divs = [
+            Poly::zero(),
+            y(1) + c(1.0),
+        ];
+
+        println!("{} / [{}, {}]", &f, &divs[0], &divs[1]);
+
+        let (r, q) = Computer::<Lex, f64>::divide(&f, &divs);
+
+        pp!(r);
+        pp!(q[0]);
+        pp!(q[1]);
+
+        pp!(&q[0] * &divs[0]);
+        pp!(&q[1] * &divs[1]); */
+
+        let f = x(2) + x(3) + x(1) + x(2) + x(0) + x(3);
+
+        pp!(f);
     }
 
     #[test]
@@ -132,32 +189,31 @@ mod tests {
                     .map(move |coef| Term::new(coef, mdeg.clone()))
             })
             .multi_cartesian_product()
-            .map(|v| Poly::from_vec(v.into_iter().filter(|t| t.coef != 0.0).collect()));
-
+            .map(|v| Poly::new_unchecked(v.into_iter().filter(|t| t.coef != 0.0).collect()));
 
         for (f, (g1, g2)) in poly_iter
             .clone()
             .cartesian_product(poly_iter.clone().cartesian_product(poly_iter))
         {
             // println!("{} / [{}, {}]", &f, &g1, &g2);
-            test_result_equality::<Lex, f64>(&f, &[g1, g2]);
+            test_result_equality(&f, &[g1, g2]);
         }
     }
 
     #[cfg(test)]
-    fn poly_assert_eq<MO: MonomialOrder, F: Field>(f1: &Polynomial<F>, f2: &Polynomial<F>) {
-        assert_eq!(sort_terms::<MO, F>(f1).terms, sort_terms::<MO, F>(f2).terms);
+    fn poly_assert_eq(f1: &Poly, f2: &Poly) {
+        assert_eq!(
+            Computer::<f64, Lex>::sort_terms(f1).terms,
+            Computer::<f64, Lex>::sort_terms(f2).terms
+        );
     }
 
     #[cfg(test)]
-    fn test_result_equality<MO: MonomialOrder, F: Field>(
-        f: &Polynomial<F>,
-        g: &[Polynomial<F>],
-    ) {
-        let (r, q) = divide::<MO, F>(f, g);
+    fn test_result_equality(f: &Poly, g: &[Poly]) {
+        let (r, q) = Computer::<f64, Lex>::divide(f, g);
 
         let f2 = q.iter().zip_eq(g).map(|(qi, gi)| qi * gi).fold(r, Add::add);
 
-        poly_assert_eq::<MO, F>(f, &f2);
+        poly_assert_eq(f, &f2);
     }
 }

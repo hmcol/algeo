@@ -15,13 +15,30 @@ pub struct Lex;
 
 impl MonomialOrder for Lex {
     fn cmp(a: &MDeg, b: &MDeg) -> Ordering {
-        for (deg_a, deg_b) in a.degs().zip(b.degs()) {
+        let mut iter_a = a.degs();
+        let mut iter_b = b.degs();
+
+        loop {
+            match (iter_a.next(), iter_b.next()) {
+                (None, None)  => break Ordering::Equal,
+                (None, Some(_)) => break Ordering::Less, // might need to check rhs nonzero
+                (Some(_), None) => break Ordering::Greater,
+                (Some(deg_a), Some(deg_b)) => {
+                    match deg_a.cmp(deg_b) {
+                        Ordering::Equal => continue,
+                        lt_or_gt => break lt_or_gt,
+                    }
+                },
+            }
+        }
+
+        /* for (deg_a, deg_b) in a.degs().zip(b.degs()) {
             match deg_a.cmp(deg_b) {
                 Ordering::Equal => continue,
                 lt_or_gt => return lt_or_gt,
             }
         }
-        grad(a, b)
+        grad(a, b) */
     }
 }
 
@@ -29,7 +46,7 @@ impl MonomialOrder for Lex {
 /// multidegrees.
 ///
 /// This runs the lexicographic order with the indices reversed; not to be
-/// confused with simply calling `Ordering::reverse` on the result of [`lex`].
+/// confused with simply calling `Ordering::reverse` on the result of [`Lex::cmp`].
 pub struct RevLex;
 
 impl MonomialOrder for RevLex {
@@ -101,7 +118,7 @@ mod order_tests {
     use itertools::Itertools;
     use std::cmp::Ordering;
 
-    use crate::poly::{MDeg, MonomialOrder};
+    use crate::poly::MDeg;
     use super::*;
 
     macro_rules! mdeg {

@@ -1,8 +1,9 @@
 /// elements of the polynomial ring `F[X]`
-mod ring;
-mod div;
-mod ord;
+pub mod ring;
+/// general polynomial division
+pub mod div;
+/// monomial orders
+pub mod ord;
 
 #[doc(inline)]
-pub use ring::{u, v, w, x, y, z, Const, MDeg, Polynomial, Term};
-pub use ord::*;
+pub use ring::{u, v, w, x, y, z, MDeg, Polynomial, Term};
