@@ -1,0 +1,1 @@
+initSidebarItems({"fn":[["binop_read",""]],"struct":[["BinOpArgs","Arguments for the macro `#[binop(...)]`"],["BinOpFn","Method implementation for a binary operation: `fn op(self, rhs: B) -> C { .. }`"],["BinOpImpl","An impl block for a binary operation."],["BinOpOutput","Type definition for the output of a binary operation: `type Output = C;`"]]});

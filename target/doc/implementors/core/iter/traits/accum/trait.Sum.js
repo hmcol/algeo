@@ -1,0 +1,3 @@
+(function() {var implementors = {};
+implementors["algeo"] = [{"text":"impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/iter/traits/accum/trait.Sum.html\" title=\"trait core::iter::traits::accum::Sum\">Sum</a>&lt;<a class=\"struct\" href=\"algeo/core/frac/struct.Frac.html\" title=\"struct algeo::core::frac::Frac\">Frac</a>&gt; for <a class=\"struct\" href=\"algeo/core/frac/struct.Frac.html\" title=\"struct algeo::core::frac::Frac\">Frac</a>","synthetic":false,"types":["algeo::core::frac::Frac"]}];
+if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

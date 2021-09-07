@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["Frac",""]],"type":[["I","integer type for fractions"]]});
