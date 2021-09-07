@@ -11,6 +11,8 @@ Computer algebra, algebraic geometry, and related math.
 keywords = [ "math", "algebra", "geometry" ]
 categories = [ "mathematics", "algorithms" ]
 
+[build]
+rustdocflags = [ "--html-in-header", "docs-header.html" ]
 
 [dependencies]
 xops = "0.1.1"

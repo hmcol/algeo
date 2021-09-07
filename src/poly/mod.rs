@@ -1,4 +1,4 @@
-/// elements of the polynomial ring `F[X]`
+/// elements of the polynomial ring $ F^X $
 pub mod ring;
 /// general polynomial division
 pub mod div;

@@ -10,6 +10,8 @@ use crate::core::num::*;
 type I = usize;
 
 /// type of the degrees in a multidegree
+/// 
+/// may need to be changed to `u8` as many of the computations are turning out to require nonnegative degrees
 type D = i8;
 
 /// Multidegree for a monomial; wraps a `Vec<i8>`.

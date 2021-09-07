@@ -96,6 +96,11 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
         (remainder, quotients)
     }
 
+    /// Returns the monic least common multiple of the given terms
+    /// 
+    /// If `s = s_0 x_1^{a_1} ... x_n^{a_n}` and `t = t_0 x_1^{b_1} ... x_n^{b_n}`, then `monic_lcm(s, t) = x_1^{c_1} ... x_n^{c_n}` where `c_i = max{a_i, b_i}`.
+    /// 
+    /// won't work/doesn't make sense for for negative degrees
     pub fn monic_lcm(s: &Term<F>, t: &Term<F>) -> Term<F> {
         if s.coef == F::ZERO && t.coef == F::ZERO {
             return Term::zero();
