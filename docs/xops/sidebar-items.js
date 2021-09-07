@@ -1,1 +1,0 @@
-initSidebarItems({"attr":[["binop","For deriving extra implementations of a binary operation."]]});

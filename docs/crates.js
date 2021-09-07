@@ -1,1 +1,0 @@
-window.ALL_CRATES = ["algeo","darling","darling_core","darling_macro","either","fnv","ident_case","itertools","proc_macro2","quote","strsim","syn","unicode_xid","xops","xops_core","xops_macros"];

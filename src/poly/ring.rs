@@ -560,11 +560,11 @@ macro_rules! var_fn {
     };
     (@doc_of $var:expr, $idx:expr) => {
         concat!(
-            "Shorthand for `",
+            "Shorthand for $",
             $var,
-            "`; i.e., the indeterminate of index `",
+            " = x_",
             $idx,
-            "` in `F[X]`.\n\n",
+            "\\in F[x_1, \\dots, x_n]$.\n\n",
             "As a Term, `",
             $var,
             "(d)` is monic with multidegree `{ ",
@@ -583,9 +583,10 @@ macro_rules! var_fn {
 var_fn! { x -> 0 }
 var_fn! { y -> 1 }
 var_fn! { z -> 2 }
-var_fn! { u -> 3 }
-var_fn! { v -> 4 }
-var_fn! { w -> 5 }
+var_fn! { w -> 3 }
+var_fn! { u -> 4 }
+var_fn! { v -> 5 }
+
 
 // display ---------------------------------------------------------------------
 

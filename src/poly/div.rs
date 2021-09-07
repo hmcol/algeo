@@ -30,11 +30,17 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
         f.terms().max_by(|s, t| O::cmp(&s.mdeg, &t.mdeg))
     }
 
-    /// Performs general polynomial division on `f` with the divisors `divs = [g_1, ..., g_m]`, returns `(r, [q_1, ..., q_m])`, where `r` is the remainder and `q_1, ..., q_m` are the quotients, so that `f = q_1g_1 + ... + q_mg_m`.
+    /// Performs general polynomial division on `f` with the divisors `divs`
+    /// 
+    /// Let `f` = $f$ and `divs` = $\\{g_1, \dots, g_m\\}$.
+    /// 
+    /// Returns $(r, \\{q_1, \dots, q_m\\})$, where 
+    /// $$ f = q_1g_1 + \cdots + q_mg_m + r, $$
+    /// and the multidegree of each $q_ig_i$ is no more than te multidegree of $f$.
     ///
-    /// If it happens that `r = 0`, then we can conclude `f` is in the ideal `I = <g_1, ..., g_m>`.
+    /// If it happens that $r = 0$, then we can conclude $f \in I = \langle g_1, \dots, g_m \rangle$.
     ///
-    /// If the divisors form a Gröbner basis for `I`, then the order of the `g`'s does not affect the result. In particular `r = 0` if and only if `f` in `I`.
+    /// If the divisors form a Gröbner basis for $I$, then the order of the $g_i$'s does not affect the result. In particular $r = 0$ if and only if $f \in I$.
     ///
     /// If the divisors do no form a Gröbner basis, this is not necessarily the case.
     pub fn divide(
@@ -98,7 +104,7 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
 
     /// Returns the monic least common multiple of the given terms
     /// 
-    /// If `s = s_0 x_1^{a_1} ... x_n^{a_n}` and `t = t_0 x_1^{b_1} ... x_n^{b_n}`, then `monic_lcm(s, t) = x_1^{c_1} ... x_n^{c_n}` where `c_i = max{a_i, b_i}`.
+    /// If $s = s_0 x_1^{a_1} \dots x_n^{a_n}$ and $t = t_0 x_1^{b_1} \dots x_n^{b_n}$, then `monic_lcm(s, t)` returns $x_1^{c_1} \dots x_n^{c_n}$ where $c_i = \text{max}(a_i, b_i)$.
     /// 
     /// won't work/doesn't make sense for for negative degrees
     pub fn monic_lcm(s: &Term<F>, t: &Term<F>) -> Term<F> {

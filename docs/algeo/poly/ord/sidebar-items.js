@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["grad","The graded order on multidegrees."]],"struct":[["GRevLex","The Graded Reverse Lexicographic Order on multidegrees."],["GrLex","The Graded Lexicographic Order on multidegrees."],["Lex","The Lexicographic Order on multidegrees."],["RevLex","The Reverse Lexicographic Order order on multidegrees."]],"trait":[["MonomialOrder",""]]});
