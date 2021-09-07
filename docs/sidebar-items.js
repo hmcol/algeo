@@ -1,1 +1,1 @@
-initSidebarItems({"mod":[["core",""],["poly",""]]});
+initSidebarItems({})
