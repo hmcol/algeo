@@ -26,19 +26,19 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
     }
 
     /// Returns the leading term of `f`, under the monomial order `Self::O`.
-    ///
+    /// 
     /// Returns `None` if `f` has no terms.
-    ///
+    /// 
     /// Ideally, should also return none if it only has zero terms; but also we would ideally never have zero terms, so go figure.
-    pub fn leading_term(f: &Polynomial<F>) -> Option<&Term<F>> {
+    pub fn leading_term(f: &'_ Polynomial<F>) -> Option<&'_ Term<F>> {
         f.terms().max_by(|s, t| O::cmp(&s.mdeg, &t.mdeg))
     }
 
     /// Performs general polynomial division on `f` with the divisors `divs`
-    ///
+    /// 
     /// Let `f` = $f$ and `divs` = $\\{g_1, \dots, g_m\\}$.
-    ///
-    /// Returns $(r, \\{q_1, \dots, q_m\\})$, where
+    /// 
+    /// Returns $(r, \\{q_1, \dots, q_m\\})$, where 
     /// $$ f = q_1g_1 + \cdots + q_mg_m + r, $$
     /// and the multidegree of each $q_ig_i$ is no more than te multidegree of $f$.
     ///
@@ -59,19 +59,29 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
         // let divs: Vec<Polynomial<F>> = divs.iter().filter(|g| !g.is_zero()).cloned().collect();
 
         'outer: while let Some(lt_f) = Self::leading_term(&f).cloned() {
+            // maybe not necessary anymore? not sure
+            // hack to ignore zero coefficients
+            // - will not work in case of floating-point error
+            // - should be feature of Polys to cull zeros
+            /* if lt_f.coef == F::ZERO {
+                f.terms.pop();
+                continue;
+            } */
+
             // f still has (nonzero) terms
 
             for (g, q) in divs.iter().zip(quotients.iter_mut()) {
                 if let Some(lt_g) = Self::leading_term(&g) {
-                    if let Some(a) = lt_f.try_div(lt_g) {
-                        // case 1: `lt_f` is divisible by `lt_g`
-                        // - `a` is the term such that `lt_f == a * lt_g`
+                    if lt_g.divides(&lt_f) {
+                        // case 1: LT(f) is divisible by some LT(g_i)
+                        // - use LT(g_i) to reduce the degree of f
 
-                        // add `a` to `g`'s quotient `q`
-                        *q = &*q + &a;
-
-                        // eliminate `lt_f == a * lt_g` from `f`
-                        f = f - a * g;
+                        // a_i is the term such that LT(f) = a_i * LT(g_i)
+                        let a = &(&lt_f / lt_g);
+                        // add a_i to g_i's quotient, q_i
+                        *q += a;
+                        // eliminate LT(f) with a_i * LT(g_i)
+                        f -= a * g;
 
                         continue 'outer;
                     }
@@ -88,7 +98,7 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
             if let Some(lt_f) = f.terms.pop() {
                 // first
 
-                remainder = remainder + lt_f;
+                remainder += lt_f;
             }
         }
 
@@ -97,13 +107,13 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
     }
 
     /// Returns the monic least common multiple of the given terms
-    ///
+    /// 
     /// Given $s = c x_1^{a_1} \dots x_n^{a_n}$ and $t = d x_1^{b_1} \dots x_n^{b_n}$, then `monic_lcm(s, t)` returns
-    ///
+    /// 
     /// If $\partial s = (a_1, \dots, a_n)$ and $\partial t = (b_1, \dots, b_n)$, then
-    ///
+    /// 
     /// $$ \text{monic-lcm}(s, t) = x_1^{\max(a_1, b_1)} \cdots x_n^{\max(a_n, b_n)}. $$
-    ///
+    /// 
     /// won't work/doesn't make sense for for negative degrees
     pub fn monic_lcm(s: &Term<F>, t: &Term<F>) -> Term<F> {
         if s.coef == F::ZERO && t.coef == F::ZERO {
@@ -121,10 +131,10 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
     }
 
     /// Returns a combination of `f` and `g` with their leading terms cancelled.
-    ///
+    /// 
     /// In particular, if $M$ is the monic lcm of $\operatorname{LT}(f)$ and $\operatorname{LT}(g)$, `reduce(f, g)` returns
-    ///
-    /// $$ S(f, g) = \frac{M}{\operatorname{LT}(f)} f - \frac{M}{\operatorname{LT}(g)} g. $$
+    /// 
+    /// $$ S(f, g) = \frac{M}{\operatorname{LT}(f)} f - \frac{M}{\operatorname{LT}(g)} g. $$ 
     pub fn reduce(f: &Polynomial<F>, g: &Polynomial<F>) -> Option<Polynomial<F>> {
         let lt_f = Self::leading_term(f)?;
         let lt_g = Self::leading_term(g)?;
@@ -195,30 +205,30 @@ mod tests {
 
     #[test]
     fn division() {
-        let poly_iter = polys(2, 3, 1)
-            .into_iter()
-            .cartesian_product(polys(2, 1, 2).into_iter().cartesian_product(polys(2, 1, 2)));
+        const VARS: i32 = 2;
+        const MAX_DEG: i8 = 2;
+        const MAX_COEF: i32 = 1;
 
-        for (f, (g1, g2)) in poly_iter {
-            // println!("{} / [{}, {}]", &f, &g1, &g2);
-            test_result_equality(&f, &[g1, g2]);
-        }
-    }
-
-    fn polys(vars: i32, max_deg: u8, max_coef: i32) -> Vec<Polynomial<f64>> {
-        (0..vars)
-            .map(|_| (0..=max_deg).rev())
+        let poly_iter = (0..VARS)
+            .map(|_| (0..=MAX_DEG).rev())
             .multi_cartesian_product()
             .map(MDeg::from_vec)
-            .filter(|mdeg| mdeg.total_deg() <= max_deg)
+            .filter(|mdeg| mdeg.total_deg() <= MAX_DEG)
             .map(|mdeg| {
-                (0..=max_coef)
+                (0..=MAX_COEF)
                     .map(f64::from)
                     .map(move |coef| Term::new(coef, mdeg.clone()))
             })
             .multi_cartesian_product()
-            .map(|v| Poly::new_unchecked(v.into_iter().filter(|t| !t.is_zero()).collect()))
-            .collect()
+            .map(|v| Poly::new_unchecked(v.into_iter().filter(|t| t.coef != 0.0).collect()));
+
+        for (f, (g1, g2)) in poly_iter
+            .clone()
+            .cartesian_product(poly_iter.clone().cartesian_product(poly_iter))
+        {
+            // println!("{} / [{}, {}]", &f, &g1, &g2);
+            test_result_equality(&f, &[g1, g2]);
+        }
     }
 
     #[cfg(test)]

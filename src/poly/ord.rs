@@ -128,7 +128,7 @@ mod order_tests {
     }
 
     fn _dbg_suite(ord: fn(&MDeg, &MDeg) -> Ordering) {
-        let d = |s: &[i8]| format!("{:?}{:?}{:?}", s[0], s[1], s[2]);
+        let d = |s: &[u8]| format!("{:?}{:?}{:?}", s[0], s[1], s[2]);
 
         let c = |o: Ordering| match o {
             Ordering::Less => '<',
@@ -264,7 +264,7 @@ mod order_tests {
     fn dbg_grlex_vs_grevlex() {
         let mut vecs = Vec::new();
 
-        const D: i8 = 5;
+        const D: u8 = 5;
 
         for x in 0..D {
             for y in 0..(D - x) {

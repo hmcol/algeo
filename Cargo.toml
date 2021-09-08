@@ -3,13 +3,15 @@ name = "algeo"
 version = "0.1.0"
 edition = "2018"
 license = "MIT OR Apache-2.0"
+description = "Computer algebra, algebraic geometry, and related math."
+keywords = ["math", "algebra", "geometry"]
+categories = ["mathematics", "algorithms"]
 readme = "README.md"
+documentation = "https://docs.rs/algeo"
 repository = "https://github.com/hmcol/algeo"
-description = """
-Computer algebra, algebraic geometry, and related math.
-"""
-keywords = [ "math", "algebra", "geometry" ]
-categories = [ "mathematics", "algorithms" ]
+
+[package.metadata.docs.rs]
+rustdocflags = [ "--html-in-header", "./docs-header.html" ] # latex in docs
 
 [dependencies]
 xops = "0.1.1"

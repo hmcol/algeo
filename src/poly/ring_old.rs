@@ -1,6 +1,3 @@
-use itertools::{EitherOrBoth, Itertools};
-use std::borrow::Borrow;
-use std::cmp::Ordering;
 use std::fmt;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use xops::binop;
@@ -13,23 +10,23 @@ use crate::core::num::*;
 type I = usize;
 
 /// type of the degrees in a multidegree
-///
+/// 
 /// may need to be changed to `u8` as many of the computations are turning out to require nonnegative degrees
-type D = u8;
+type D = i8;
 
-/// Multidegree for a monomial; wraps a `Vec<D>`.
-#[derive(Clone, PartialEq, Eq, Debug)]
+/// Multidegree for a monomial; wraps a `Vec<i8>`.
+#[derive(Clone, PartialEq, Eq, Default, Debug, Hash)]
 pub struct MDeg(pub Vec<D>);
 
-/// single term of a multivariate polynomial with coefficients in `F`.
-#[derive(Clone, Debug)]
+/// Wrapper for a coefficient in $F$ and a multidegree.
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
 pub struct Term<F: Field> {
     pub coef: F,
     pub mdeg: MDeg,
 }
 
-/// a multivariate polynomial with coefficients in the field `F`
-#[derive(Clone, Debug)]
+/// a polynomial with coefficients in the field F
+#[derive(Clone, Debug, Hash)]
 pub struct Polynomial<F: Field> {
     // pub? yeah pub.
     pub terms: Vec<Term<F>>,
@@ -59,10 +56,10 @@ impl MDeg {
     pub fn from_vec(mut vec: Vec<D>) -> Self {
         if let Some(idx) = vec.iter().rposition(|deg| *deg != 0) {
             vec.truncate(idx + 1);
-            MDeg(vec)
-        } else {
-            MDeg::zero()
         }
+
+        // return
+        MDeg(vec)
     }
 
     /// returns the empty multidegree
@@ -75,7 +72,12 @@ impl MDeg {
 
     // hack until we can guarantee multidegrees never have trailing zeros
     pub fn is_zero(&self) -> bool {
-        self.0.len() == 0
+        for deg in &self.0 {
+            if *deg != 0 {
+                return false;
+            }
+        }
+        true
     }
 
     /// returns the multidegree with the sole entry `idx: deg`
@@ -139,67 +141,25 @@ impl MDeg {
         }
         true
     }
-
-    pub fn try_sub(&self, other: &MDeg) -> Option<MDeg> {
-        if other.is_zero() {
-            return Some(self.clone());
-        }
-        // `other` is guaranteed nonzero
-
-        if self.is_zero() {
-            // `self - other` < 0 so subtraction would fail
-            return None;
-        }
-        // `self` and `other` are guaranteed nonzero
-
-        let mut degs = Vec::with_capacity(self.len());
-        let mut zero_cache = 0;
-
-        for pair in self.degs().zip_longest(other.degs()) {
-            let c = match pair {
-                EitherOrBoth::Both(a, b) => match a.cmp(b) {
-                    // `a - b < 0`; subtraction has failed
-                    Ordering::Less => return None,
-                    // `a - b == 0`; increment zero cache
-                    Ordering::Equal => {
-                        zero_cache += 1;
-                        continue;
-                    }
-                    // `a - b > 0`; carry on with subtraction
-                    Ordering::Greater => a - b,
-                },
-                // only `self` degs remaining, last of which is trusted to be nonzero, so just take the rest
-                EitherOrBoth::Left(a) => *a,
-                // only `rhs` degs remaining, last of which is trusted to be nonzero, so subtraction has failed
-                EitherOrBoth::Right(_) => return None,
-            };
-            // `c` is guaranteed nonzero
-
-            // catch up with zeros
-            degs.append(&mut vec![0; zero_cache]);
-            zero_cache = 0;
-
-            degs.push(c);
-        }
-
-        Some(MDeg(degs))
-    }
 }
 
 impl<F: Field> Term<F> {
-    /// Returns the term with the given coefficient and multidegree.
+    /// returns the term with the given coefficient and multidegree
     ///
-    /// WARNING: Does not sanitize zeros.
+    /// this is the most basic way one should create a new term struct. the
+    /// current implementation is rather simply
+    /// ```ignore
+    /// {
+    ///    Term { coef, mdeg }
+    /// }
+    /// ```
+    /// if, for some reason, term creation need be changed, this could help us
+    /// ensure the change is uniform
     #[inline]
     pub fn new_unchecked(coef: F, mdeg: MDeg) -> Self {
         Term { coef, mdeg }
     }
 
-    /// Returns the term with the given coefficient and multidegree.
-    ///
-    /// NOTE: Sanitizes zeros.
-    ///
-    /// This is the most basic way one should create a new term struct.
     pub fn new(coef: F, mdeg: MDeg) -> Self {
         if coef == F::ZERO {
             Term::zero()
@@ -210,36 +170,35 @@ impl<F: Field> Term<F> {
 
     /// returns a term with the given coefficient and multidegree `MDeg::0`
     ///
-    /// WARNING: Does not sanitize zeros.
-    ///
     /// this is used for interpreting elements of the field as possible terms
     /// in polynomials over the field
     #[inline]
-    pub fn constant_unchecked(coef: F) -> Self {
+    pub fn constant(coef: F) -> Self {
         Term::new_unchecked(coef, MDeg::zero())
     }
 
-    /// Returns the constant zero term.
-    #[inline]
+    /// returns the constant term zero: `Term { coef: 0, mdeg: 0 }`  
+    ///
+    /// this is a bit sketchy since the zero of the polynomial ring is
+    /// typically not assigned a multidegree
+    ///
+    /// this would be sort of consistent with nonzero constant terms having
+    /// multidegree zero, and if it doesn't cause any problems, then i'm
+    /// willing to let the mathematics be a little uncomfortable
     pub fn zero() -> Self {
-        Term::constant_unchecked(F::ZERO)
+        Term::constant(F::ZERO)
     }
 
-    /// Checks whether the term is zero.
-    #[inline]
     pub fn is_zero(&self) -> bool {
         self.coef == F::ZERO
     }
 
-    /// Returns the constant one term
-    #[inline]
+    /// returns the constant term one: `Term { coef: 1, mdeg: 0 }`
     pub fn one() -> Self {
-        Term::constant_unchecked(F::ONE)
+        Term::constant(F::ONE)
     }
 
     /// returns the monic term of given multidegree: `Term { coef: 1, mdeg }`
-    ///
-    /// WARNING: Does not sanitize zeros.
     pub fn monic(mdeg: MDeg) -> Self {
         Term::new_unchecked(F::ONE, mdeg)
     }
@@ -281,27 +240,12 @@ impl<F: Field> Term<F> {
     pub fn divides(&self, other: &Term<F>) -> bool {
         self.coef != F::ZERO && self.mdeg.is_succ(&other.mdeg)
     }
-
-    pub fn try_div(&self, other: &Term<F>) -> Option<Term<F>> {
-        if self.is_zero() {
-            return Some(Term::zero());
-        }
-        if other.is_zero() {
-            return None;
-        }
-        // `self` and `other` guaranteed nonzero
-
-        Some(Term::new_unchecked(
-            self.coef / other.coef,
-            self.mdeg.try_sub(&other.mdeg)?,
-        ))
-    }
 }
 
 impl<F: Field> Polynomial<F> {
-    /// Returns the polynomial with the given terms.
+    /// Returns the polynomial with terms exactly `vec`.
     ///
-    /// WARNING: Does not sanitize zeros.
+    /// This does no checking for zero terms
     #[inline]
     pub fn new_unchecked(terms: Vec<Term<F>>) -> Self {
         Polynomial { terms }
@@ -309,14 +253,17 @@ impl<F: Field> Polynomial<F> {
 
     /// Returns polynomial with terms from `vec`, filtered for zero coefficients
     ///
-    /// NOTE: Sanitizes zeros.
-    ///
     /// Ideally, this should not be necessary; polynomial computations should
     /// be careful to keep themselves clean operations should be
     /// structured such that no additional filtering is necessary except during
     /// creation
     pub fn new(terms: Vec<Term<F>>) -> Self {
-        Self::new_unchecked(terms.into_iter().filter(|t| !t.is_zero()).collect())
+        Self::new_unchecked(
+            terms
+                .into_iter()
+                .filter(|term| term.coef != F::ZERO)
+                .collect(),
+        )
     }
 
     /// Returns the zero polynomial.
@@ -333,43 +280,29 @@ impl<F: Field> Polynomial<F> {
         self.terms.is_empty()
     }
 
-    /// Returns the polynomial with only the term `t`
-    ///
-    /// WARNING: Does not sanitize zeros.
+    /// returns a polynomial with only the term `t`
     #[inline]
-    pub fn monomial_unchecked(t: Term<F>) -> Self {
+    pub fn monomial(t: Term<F>) -> Self {
         Self::new_unchecked(vec![t])
     }
 
-    /// Returns `coef` as a polynomial
-    ///
-    /// WARNING: Does not sanitize zeros.
-    #[inline]
-    pub fn constant_unchecked(coef: F) -> Self {
-        Self::monomial_unchecked(Term::constant_unchecked(coef))
-    }
-
-    /// Returns `coef` as a polynomial
-    ///
-    /// NOTE: Sanitizes zeros.
     pub fn constant(coef: F) -> Self {
         if coef == F::ZERO {
             Self::zero()
         } else {
-            Self::monomial_unchecked(Term::constant_unchecked(coef))
+            Self::monomial(Term::constant(coef))
         }
     }
 
     /// returns the polynomial with only the constant term `1`
     #[inline]
     pub fn one() -> Self {
-        Self::monomial_unchecked(Term::one())
+        Self::monomial(Term::one())
     }
 
     /// Returns an iterator over (immutably) borrowed terms: `Item = &Term<F>`.
     ///
     /// Should replace return with in-house iterator struct.
-    #[inline]
     pub fn terms(&self) -> std::slice::Iter<Term<F>> {
         self.terms.iter()
     }
@@ -377,7 +310,6 @@ impl<F: Field> Polynomial<F> {
     /// Returns an iterator over mutably borrowed terms: `Item = &mut Term<F>`.
     ///
     /// Should replace return with in-house iterator struct.
-    #[inline]
     pub fn terms_mut(&mut self) -> std::slice::IterMut<Term<F>> {
         self.terms.iter_mut()
     }
@@ -396,160 +328,129 @@ impl<F: Field> Polynomial<F> {
 
 // defaults --------------------------------------------------------------------
 
-/// Implements the `Default` trait by calling `Self::zero`.
-///
-/// For hopefully obvious reasons, this only works if the given type has an unambiguous function called `zero`.
-macro_rules! impl_zero_default {
-    ($Type:ty $(where $($generics:tt)*)?) => {
-        impl$(<$($generics)*>)? Default for $Type {
-            #[inline]
-            fn default() -> Self {
-                Self::zero()
-            }
-        }
-    };
+impl<F: Field> Default for Polynomial<F> {
+    fn default() -> Self {
+        Self::zero()
+    }
 }
-
-impl_zero_default! { MDeg }
-impl_zero_default! { Term<F> where F: Field }
-impl_zero_default! { Polynomial<F> where F: Field }
 
 // conversions -----------------------------------------------------------------
 
 impl<F: Field> From<F> for Term<F> {
-    #[inline]
     fn from(coef: F) -> Self {
-        Term::constant_unchecked(coef)
-    }
-}
-
-impl<F: Field> From<F> for Polynomial<F> {
-    fn from(coef: F) -> Self {
-        if coef == F::ZERO {
-            Polynomial::zero()
-        } else {
-            Polynomial::constant_unchecked(coef)
-        }
+        Term::constant(coef)
     }
 }
 
 impl<F: Field> From<Term<F>> for Polynomial<F> {
     fn from(term: Term<F>) -> Self {
-        if term.is_zero() {
-            Polynomial::zero()
-        } else {
-            Polynomial::monomial_unchecked(term)
-        }
+        Polynomial::monomial(term)
     }
 }
 
-impl<F: Field> From<&Term<F>> for Polynomial<F> {
-    fn from(term: &Term<F>) -> Self {
-        if term.is_zero() {
-            Polynomial::zero()
-        } else {
-            Polynomial::monomial_unchecked(term.clone())
-        }
+impl<F: Field> From<F> for Polynomial<F> {
+    fn from(coef: F) -> Self {
+        Polynomial::from(Term::from(coef))
     }
 }
-
-// equality --------------------------------------------------------------------
-
-impl<F: Field> PartialEq for Term<F> {
-    fn eq(&self, other: &Self) -> bool {
-        self.coef == other.coef && self.mdeg == other.mdeg
-    }
-}
-
-impl<F: Field> Eq for Term<F> {}
 
 // operations ------------------------------------------------------------------
 
-#[binop(derefs)]
-impl Add for &MDeg {
-    type Output = MDeg;
-
-    fn add(self, rhs: &MDeg) -> Self::Output {
-        let mut degs = Vec::with_capacity(self.len().max(rhs.len()));
-        let mut zero_cache = 0;
-
-        for pair in self.degs().zip_longest(rhs.degs()) {
-            let c = match pair {
-                EitherOrBoth::Both(0, 0) | EitherOrBoth::Left(0) | EitherOrBoth::Right(0) => {
-                    zero_cache += 1;
-                    continue;
-                }
-                EitherOrBoth::Both(a, b) => a + b,
-                EitherOrBoth::Left(a) => *a,
-                EitherOrBoth::Right(b) => *b,
-            };
-            // `c` is guaranteed nonzero
-
-            // catch up with zeros
-            degs.append(&mut vec![0; zero_cache]);
-            zero_cache = 0;
-
-            degs.push(c);
+/// Given an implementation of `OpAssign<&B> for A`, this implements `OpAssign<B> for A` and `Op<B> for A`, with any specified arguments passed to `#[xops::binop(...)]`
+///
+/// this functionality will be moved to xops at some point
+macro_rules! easy_ass {
+    (@internal
+        $TraitAss:ident $fn_ass:ident
+        $Trait:ident $fn_:ident
+        $(, $arg:ident)*
+        for $Lhs:ty, $Rhs:ty
+        $(where $($gens:tt)* )?
+    ) => {
+        impl$(< $($gens)* >)? $TraitAss<$Rhs> for $Lhs {
+            fn $fn_ass(&mut self, rhs: $Rhs) {
+                self.$fn_ass(&rhs);
+            }
         }
 
-        MDeg(degs)
+        #[binop($($arg),*)]
+        impl $(< $($gens)* >)? $Trait<$Rhs> for $Lhs {
+            type Output = $Lhs;
+
+            fn $fn_(mut self, rhs: $Rhs) -> Self::Output {
+                self.$fn_ass(rhs);
+
+                // return
+                self
+            }
+        }
+    };
+    ($Lhs:ty [+ $(,$arg:ident)*] $($t:tt)*) => {
+        easy_ass! { @internal AddAssign add_assign Add add $(,$arg)* for $Lhs, $($t)* }
+    };
+    ($Lhs:ty [- $(,$arg:ident)*] $($t:tt)*) => {
+        easy_ass! { @internal SubAssign sub_assign Sub sub $(,$arg)* for $Lhs, $($t)* }
+    };
+    ($Lhs:ty [* $(,$arg:ident)*] $($t:tt)*) => {
+        easy_ass! { @internal MulAssign mul_assign Mul mul $(,$arg)* for $Lhs, $($t)* }
+    };
+    ($Lhs:ty [/ $(,$arg:ident)*] $($t:tt)*) => {
+        easy_ass! { @internal DivAssign div_assign Div div $(,$arg)* for $Lhs, $($t)* }
+    };
+}
+
+impl AddAssign<&MDeg> for MDeg {
+    fn add_assign(&mut self, rhs: &MDeg) {
+        if self.len() < rhs.len() {
+            let pad_zeros = &mut vec![0; std::cmp::max(0, rhs.len() - self.len())];
+            self.0.append(pad_zeros);
+        }
+
+        self.degs_mut()
+            .zip(rhs.degs())
+            .for_each(|(deg_a, deg_b)| deg_a.add_assign(deg_b));
     }
 }
+easy_ass! { MDeg [+, refs_clone] MDeg }
+
+impl SubAssign<&MDeg> for MDeg {
+    fn sub_assign(&mut self, rhs: &MDeg) {
+        if self.len() < rhs.len() {
+            let pad_zeros = &mut vec![0; std::cmp::max(0, rhs.len() - self.len())];
+            self.0.append(pad_zeros);
+        }
+
+        self.degs_mut()
+            .zip(rhs.degs())
+            .for_each(|(deg_a, deg_b)| deg_a.sub_assign(deg_b));
+
+        self.trim_zeros();
+    }
+}
+easy_ass! { MDeg [-, refs_clone] MDeg }
+
+impl<F: Field> MulAssign<&Term<F>> for Term<F> {
+    fn mul_assign(&mut self, rhs: &Term<F>) {
+        self.coef *= rhs.coef;
+        self.mdeg += &rhs.mdeg;
+    }
+}
+easy_ass! { Term<F> [*, refs_clone] Term<F> where F: Field }
+
+impl<F: Field> DivAssign<&Term<F>> for Term<F> {
+    fn div_assign(&mut self, rhs: &Term<F>) {
+        self.coef /= rhs.coef;
+        self.mdeg -= &rhs.mdeg;
+    }
+}
+easy_ass! { Term<F> [/, refs_clone] Term<F> where F: Field }
 
 #[binop(derefs)]
-impl<F: Field> Mul for &Term<F> {
-    type Output = Term<F>;
-
-    fn mul(self, rhs: &Term<F>) -> Self::Output {
-        if self.is_zero() || rhs.is_zero() {
-            return Term::zero();
-        }
-        // `self` and `rhs` guaranteed to be nonzero
-        Term::new_unchecked(self.coef * rhs.coef, &self.mdeg + &rhs.mdeg)
-    }
-}
-
-#[binop(refs_clone)]
-impl<F: Field> Add for Term<F> {
+impl<F: Field> Add for &Term<F> {
     type Output = Polynomial<F>;
 
-    fn add(self, rhs: Term<F>) -> Self::Output {
-        if self.is_zero() {
-            // could be that `rhs == 0`; must sanitize zeros
-            return rhs.into();
-        }
-        if rhs.is_zero() {
-            // could be that `self == 0`; must sanitize zeros
-            return self.into();
-        }
-        // `self` and `rhs` guaranteed nonzero terms
-
-        if self.mdeg == rhs.mdeg {
-            let coef = self.coef + rhs.coef;
-
-            // could be that `self.coef == -rhs.coef`; must sanitize zeros
-            Term::new(coef, self.mdeg).into()
-        } else {
-            // know that `self` and `rhs` are nonzero with different multidegrees
-            Polynomial::new_unchecked(vec![self, rhs])
-        }
-    }
-}
-
-impl<F: Field> Neg for Term<F> {
-    type Output = Term<F>;
-
-    fn neg(self) -> Self::Output {
-        // trust that `self` has clean zeros, taking negative won't spoil
-        Term::new_unchecked(-self.coef, self.mdeg)
-    }
-}
-
-impl<F: Field> Neg for &Term<F> {
-    type Output = Term<F>;
-
-    fn neg(self) -> Self::Output {
-        -self.clone()
+    fn add(self, rhs: &Term<F>) -> Self::Output {
+        Polynomial::from(self.clone()) + rhs
     }
 }
 
@@ -558,166 +459,93 @@ impl<F: Field> Sub for &Term<F> {
     type Output = Polynomial<F>;
 
     fn sub(self, rhs: &Term<F>) -> Self::Output {
-        self + &-rhs
+        Polynomial::from(self.clone()) - rhs
     }
 }
 
-#[binop(refs_clone)]
-impl<F: Field> Add<Term<F>> for Polynomial<F> {
-    type Output = Polynomial<F>;
+impl<F: Field> AddAssign<&Term<F>> for Polynomial<F> {
+    fn add_assign(&mut self, rhs: &Term<F>) {
+        if rhs.coef != F::ZERO {
+            if let Some(i) = self.terms_mut().position(|t| t.mdeg == rhs.mdeg) {
+                self.terms[i].coef += rhs.coef;
 
-    fn add(mut self, rhs: Term<F>) -> Self::Output {
-        if self.is_zero() {
-            // could be that `rhs == 0`; must sanitize zeros
-            return rhs.into();
-        }
-        if rhs.is_zero() {
-            // trust that `self` has clean zeros
-            return self;
-        }
-        // `self` and `rhs` guaranteed nonzero
-
-        // i think this if/else is a contender for the canonical way to add a nonzero term `rhs` to a polynomial `self`
-        //
-        // maybe make into a method of polynomial?
-        if let Some(i) = self.terms().position(|t| t.mdeg == rhs.mdeg) {
-            self.terms[i].coef += rhs.coef;
-
-            // could be that `self.terms[i] == 0`; must sanitize
-            if self.terms[i].is_zero() {
-                self.terms.remove(i);
+                // should be replaced with proper field zero checking
+                // ya know, floating point error and stuff
+                if self.terms[i].coef == F::ZERO {
+                    self.terms.remove(i);
+                }
+            } else {
+                self.terms.push(rhs.clone());
             }
-        } else {
-            // this is a clean operation:
-            // - `self` has no nonzero terms of the same multidegree as `rhs`, so no simplifying terms is possible
-            // - `rhs` is nonzero, so zeros remain clean
-            self.terms.push(rhs);
         }
-
-        // trust that `self` started with clean zeros; adding `rhs` doesn't spoil
-        self
     }
 }
+easy_ass! { Polynomial<F> [+, refs_clone, commute] Term<F> where F: Field }
 
-#[binop(derefs)]
-impl<F: Field> Sub<&Term<F>> for &Polynomial<F> {
-    type Output = Polynomial<F>;
+impl<F: Field> Neg for &Term<F> {
+    type Output = Term<F>;
 
-    #[inline]
-    fn sub(self, rhs: &Term<F>) -> Self::Output {
-        self + &-rhs
-    }
-}
-
-#[binop(commute)]
-impl<F: Field> Add<&Polynomial<F>> for Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    #[inline]
-    fn add(self, rhs: &Polynomial<F>) -> Self::Output {
-        // clean operation so long as `Poly + Term` is clean
-        //
-        // in fact, if both `self` and `rhs` are trusted to have clean zeros, then this can be improved to only check at the start for zeros, then fold could use a possible `add_nonzero_term` method for polynomials
-        rhs.terms().fold(self, Add::add)
-    }
-}
-
-impl<F: Field> Add for Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    #[inline]
-    fn add(self, rhs: Polynomial<F>) -> Self::Output {
-        self + &rhs
-    }
-}
-
-impl<F: Field> Add for &Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    #[inline]
-    fn add(self, rhs: &Polynomial<F>) -> Self::Output {
-        self.clone() + rhs
-    }
-}
-
-impl<F: Field> Neg for &Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    #[inline]
     fn neg(self) -> Self::Output {
-        // trust that `self` has clean zeros, taking negative won't spoil
-        Polynomial::new_unchecked(self.terms().map(Neg::neg).collect())
+        Term::new_unchecked(-self.coef, self.mdeg.clone())
     }
 }
 
-impl<F: Field> Neg for Polynomial<F> {
-    type Output = Polynomial<F>;
+impl<F: Field> SubAssign<&Term<F>> for Polynomial<F> {
+    fn sub_assign(&mut self, rhs: &Term<F>) {
+        if rhs.coef != F::ZERO {
+            if let Some(i) = self.terms_mut().position(|t| t.mdeg == rhs.mdeg) {
+                self.terms[i].coef -= rhs.coef;
 
-    #[inline]
-    fn neg(mut self) -> Self::Output {
-        // trust that `self` has clean zeros, taking negative won't spoil
-        for t in self.terms_mut() {
-            t.coef = -t.coef;
+                // should be replaced with proper field zero checking
+                // ya know, floating point error and stuff
+                if self.terms[i].coef == F::ZERO {
+                    self.terms.remove(i);
+                }
+            } else {
+                self.terms.push(-rhs);
+            }
         }
-        self
     }
 }
+easy_ass! { Polynomial<F> [-, refs_clone, commute] Term<F> where F: Field }
 
-#[binop(commute)]
-impl<F: Field> Sub<&Polynomial<F>> for Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    #[inline]
-    fn sub(self, rhs: &Polynomial<F>) -> Self::Output {
-        self + -rhs
-    }
-}
-
-impl<F: Field> Sub for Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    #[inline]
-    fn sub(self, rhs: Polynomial<F>) -> Self::Output {
-        self - &rhs
-    }
-}
-
-impl<F: Field> Sub for &Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    #[inline]
-    fn sub(self, rhs: &Polynomial<F>) -> Self::Output {
-        self.clone() - rhs
-    }
-}
-
-#[binop(commute, derefs)]
-impl<F: Field> Mul<&Term<F>> for &Polynomial<F> {
-    type Output = Polynomial<F>;
-
-    fn mul(self, rhs: &Term<F>) -> Self::Output {
-        if rhs.is_zero() || self.is_zero() {
-            return Polynomial::zero();
+impl<F: Field> AddAssign<&Polynomial<F>> for Polynomial<F> {
+    fn add_assign(&mut self, rhs: &Polynomial<F>) {
+        for term in rhs.terms() {
+            self.add_assign(term);
         }
-        // `self` and `rhs` guaranteed nonzero
-
-        // this is a clean operation:
-        // - all terms nonzero, so zeros stay clean
-        // - all multidegrees change uniformly, so no simplification is possible
-        Polynomial::new_unchecked(self.terms().map(|t| t * rhs).collect())
     }
 }
+easy_ass! { Polynomial<F> [+, refs_clone] Polynomial<F> where F: Field }
+
+impl<F: Field> SubAssign<&Polynomial<F>> for Polynomial<F> {
+    fn sub_assign(&mut self, rhs: &Polynomial<F>) {
+        for term in rhs.terms() {
+            self.sub_assign(term);
+        }
+    }
+}
+easy_ass! { Polynomial<F> [-, refs_clone] Polynomial<F> where F: Field }
+
+impl<F: Field> MulAssign<&Term<F>> for Polynomial<F> {
+    fn mul_assign(&mut self, rhs: &Term<F>) {
+        for term in self.terms_mut() {
+            term.mul_assign(rhs);
+        }
+    }
+}
+easy_ass! { Polynomial<F> [*, refs_clone, commute] Term<F> where F: Field }
 
 #[binop(derefs)]
 impl<F: Field> Mul for &Polynomial<F> {
     type Output = Polynomial<F>;
 
     #[allow(clippy::suspicious_arithmetic_impl)]
-    fn mul(self, rhs: &Polynomial<F>) -> Self::Output {
-        self.terms()
-            .map(|t| t * rhs)
-            .reduce(Add::add)
-            .unwrap_or_default()
+    fn mul(self, other: &Polynomial<F>) -> Self::Output {
+        other
+            .terms
+            .iter()
+            .fold(Polynomial::zero(), |acc, t| acc + self * t)
     }
 }
 
@@ -755,10 +583,10 @@ macro_rules! var_fn {
 var_fn! { x -> 0 }
 var_fn! { y -> 1 }
 var_fn! { z -> 2 }
-
 var_fn! { w -> 3 }
 var_fn! { u -> 4 }
 var_fn! { v -> 5 }
+
 
 // display ---------------------------------------------------------------------
 
@@ -791,7 +619,7 @@ impl MDeg {
     }
 }
 
-pub fn superscript(n: u8) -> String {
+pub fn superscript(n: i8) -> String {
     match n {
         0 => String::from("⁰"),
         1 => String::from("¹"),
@@ -804,7 +632,7 @@ pub fn superscript(n: u8) -> String {
         8 => String::from("⁸"),
         9 => String::from("⁹"),
         n if n >= 10 => superscript(n / 10) + &superscript(n % 10),
-        // n if n < 0 => String::from("⁻") + &superscript(n.abs()),
+        n if n < 0 => String::from("⁻") + &superscript(n.abs()),
         _ => String::from("[bad deg]"),
     }
 }
@@ -858,7 +686,9 @@ mod tests {
 
     #[test]
     fn test_mdeg() {
-        dbg!(MDeg::zero());
+        let zero = MDeg::zero();
+
+        println!("zero = {}", zero);
 
         /* let a = MDeg::from_pairs(&[(0, 3), (3, 5), (4, 2)]);
         let b = MDeg::from_pairs(&[(0, 1), (1, 2), (4, 1), (5, 2)]);
@@ -877,9 +707,6 @@ mod tests {
 
     #[test]
     fn test_term() {
-        println!("Term::zero() = {}", Term::<f64>::zero());
-        println!("Term::one() = {}", Term::<f64>::one());
-
         let x = x::<f64>(1);
         let y = y::<f64>(1);
         let z = z::<f64>(1);
@@ -904,7 +731,7 @@ mod tests {
 
     #[test]
     fn test_poly() {
-        let c = |coef| Term::<f64>::constant_unchecked(coef);
+        let c = |coef| Term::<f64>::constant(coef);
         let x = |deg| Term::<f64>::var(0, deg);
         let y = |deg| Term::<f64>::var(1, deg);
         let z = |deg| Term::<f64>::var(2, deg);

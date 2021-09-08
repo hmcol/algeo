@@ -348,18 +348,26 @@ impl<F: Field+EpsilonEquality> EpsilonEquality for Mat<F> {
 
 #[cfg(test)]
 mod tests{
-	use crate::core::frac::Frac;
+	use crate::core::{frac::Frac, num::Field};
 	use super::Mat;
+
+	macro_rules! mat {
+		($($t:tt)*) => {
+			mat_internal([$($t)*])
+		};
+	}
+
+	fn mat_internal<F: Field, const R: usize, const C: usize>(arr: [[F; C]; R]) -> Mat<F> {
+		Mat::new(R, C, arr.concat())
+	}
 
 	#[test]
 	fn test_matrix_fmt_display(){
-		let mat1 = Mat::new(3,4,
-			vec![
-				0.0, 1.0, 2.0,  3.0,
-				4.0, 5.0, 6.0,  7.0,
-				8.0, 9.0, 10.0, 11.0
-			]
-		);
+		let mat1 = mat![
+			[0.0, 1.0, 2.0,  3.0],
+			[4.0, 5.0, 6.0,  7.0],
+			[8.0, 9.0, 10.0, 11.0]
+		];
 	
 		println!("{}",mat1);
 		assert_eq!(
@@ -370,56 +378,42 @@ mod tests{
 	
 	#[test]
 	fn test_matrix_operations(){
-		let mat1 = Mat::new(3,4,
-			vec![
-				0.0, 1.0, 2.0,  3.0,
-				4.0, 5.0, 6.0,  7.0,
-				8.0, 9.0, 10.0, 11.0
-			]
-		);
-		let mat2 = Mat::new(3,4,
-			vec![
-				1.0, -1.0, -2.0,  -3.0,
-				-4.0, -5.0, -6.0,  -7.0,
-				-8.0, -9.0, -10.0, -11.0
-			]
-		);
-		let mat3 = Mat::new(3,4,
-			vec![
-				1.0, 0.0, 0.0, 0.0,
-				0.0, 0.0, 0.0, 0.0,
-				0.0, 0.0, 0.0, 0.0
-			]
-		);
-		let mat4 = Mat::new(3,3,
-			vec![
-				1.0, 0.0, 0.0,
-				0.0, 1.0, 0.0,
-				0.0, 0.0, 1.0
-			]
-		);
-		let mat5 = Mat::new(4,1,
-			vec![
-				4.0,
-				3.0,
-				2.0,
-				1.0,
-			]
-		);
-		let mat6 = Mat::new(3,1,
-			vec![
-				10.0,
-				50.0,
-				90.0,
-			]
-		);
-		let mat7 = Mat::new(3,1,
-			vec![
-				1.0,
-				5.0,
-				9.0,
-			]
-		);
+		let mat1 = mat![
+			[0.0, 1.0, 2.0,  3.0],
+			[4.0, 5.0, 6.0,  7.0],
+			[8.0, 9.0, 10.0, 11.0]
+		];
+		let mat2 = mat![
+			[ 1.0, -1.0,  -2.0,  -3.0],
+			[-4.0, -5.0,  -6.0,  -7.0],
+			[-8.0, -9.0, -10.0, -11.0]
+		];
+		let mat3 = mat![
+			[1.0, 0.0, 0.0, 0.0],
+			[0.0, 0.0, 0.0, 0.0],
+			[0.0, 0.0, 0.0, 0.0]
+		];
+		let mat4 = mat![
+			[1.0, 0.0, 0.0],
+			[0.0, 1.0, 0.0],
+			[0.0, 0.0, 1.0]
+		];
+		let mat5 = mat![
+			[4.0],
+			[3.0],
+			[2.0],
+			[1.0],
+		];
+		let mat6 = mat![
+			[10.0],
+			[50.0],
+			[90.0],
+		];
+		let mat7 = mat![
+			[1.0],
+			[5.0],
+			[9.0],
+		];
 	
 		assert_eq!(&mat1+&mat2,mat3);
 		assert_eq!(&mat4*&mat1, mat1);
