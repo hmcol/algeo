@@ -138,7 +138,7 @@ impl MDeg {
                 return false;
             }
         }
-        
+
         true
     }
 
@@ -477,7 +477,9 @@ impl Add for &MDeg {
 
         for pair in self.degs().zip_longest(rhs.degs()) {
             let c = match pair {
-                EitherOrBoth::Both(0, 0) | EitherOrBoth::Left(0) | EitherOrBoth::Right(0) => {
+                EitherOrBoth::Both(0, 0)
+                | EitherOrBoth::Left(0)
+                | EitherOrBoth::Right(0) => {
                     zero_cache += 1;
                     continue;
                 }

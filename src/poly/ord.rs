@@ -3,8 +3,8 @@ use std::cmp::Ordering;
 use super::MDeg;
 
 /// A [Monomial Order](https://en.wikipedia.org/wiki/Monomial_order) for multidegrees.
-/// 
-/// Necessary conditions not checked by rust: 
+///
+/// Necessary conditions not checked by rust:
 /// - well-order
 /// - respects multiplication: $\alpha \leq \beta \implies \alpha + \gamma \leq \beta + \gamma$, for all multidegrees $\alpha, \beta, \gamma \in \Z^n$.
 pub trait MonomialOrder {
@@ -25,14 +25,12 @@ impl MonomialOrder for Lex {
 
         loop {
             match (iter_a.next(), iter_b.next()) {
-                (None, None)  => break Ordering::Equal,
+                (None, None) => break Ordering::Equal,
                 (None, Some(_)) => break Ordering::Less, // might need to check rhs nonzero
                 (Some(_), None) => break Ordering::Greater,
-                (Some(deg_a), Some(deg_b)) => {
-                    match deg_a.cmp(deg_b) {
-                        Ordering::Equal => continue,
-                        lt_or_gt => break lt_or_gt,
-                    }
+                (Some(deg_a), Some(deg_b)) => match deg_a.cmp(deg_b) {
+                    Ordering::Equal => continue,
+                    lt_or_gt => break lt_or_gt,
                 },
             }
         }
@@ -123,8 +121,8 @@ mod order_tests {
     use itertools::Itertools;
     use std::cmp::Ordering;
 
-    use crate::poly::MDeg;
     use super::*;
+    use crate::poly::MDeg;
 
     macro_rules! mdeg {
         ($( $deg:expr ),* $(,)?) => {
@@ -176,8 +174,6 @@ mod order_tests {
 
     #[test]
     fn test_grad() {
-
-
         assert_ord_equal!(grad(mdeg![0, 0, 0], mdeg![0, 0, 0]));
         assert_ord_equal!(grad(mdeg![1, 0, 0], mdeg![1, 0, 0]));
         assert_ord_equal!(grad(mdeg![1, 2, 3], mdeg![1, 2, 3]));

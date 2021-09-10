@@ -5,7 +5,7 @@ use itertools::{EitherOrBoth, Itertools};
 use crate::core::num::Field;
 
 use super::ord::MonomialOrder;
-use super::{MDeg, Polynomial, Term};
+use super::ring::*;
 
 /// Handler for computations related to finding Gröbner bases.
 ///
@@ -180,73 +180,74 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
         let mut m = generators.len();
         let mut i = 0;
 
-        'outer: while i < m {
+        'extend: while i < m {
             for j in 0..i {
-                if let Some(h) = Self::try_reduce(&generators[i], &generators[j]) {
-                    // h = S(g_i, g_j)
+                // remainder of `S(g_i, g_j)` after division by `generator`
+                let (r, _) = Self::divide(
+                    &Self::try_reduce(&generators[i], &generators[j])
+                        .expect("should not happen. yeah i know, joseph, 'parse don't validate'"),
+                    generators,
+                );
 
-                    let r = Self::divide(&h, generators).0;
-                    if let Some(lc_r) = Self::leading_coef(&r) {
-                        // `r` is nonzero with leading coef `lc_r`
+                if let Some(lc_r) = Self::leading_coef(&r) {
+                    // `r` is nonzero with leading coef `lc_r`
+                    // in other words, S(g_i, g_j) = 0 mod G
 
-                        // add remainder to the generators
-                        generators.push(&r / lc_r);
-                        m += 1;
+                    // add remainder to the generators
+                    generators.push(&r / lc_r);
+                    m += 1;
 
-                        // start the process over
-                        i = 0;
-                        continue 'outer;
-                    }
-                } else {
-                    panic!("should not happen. yeah i know, joseph, 'parse don't validate'");
+                    // start the process over
+                    i = 0;
+                    continue 'extend;
                 }
             }
             i += 1;
         }
 
-        /* 'outer: loop {
-            for i in 0..m {
-                for j in 0..i {
-                    if let Some(h) = Self::try_reduce(&generators[i], &generators[j]) {
-                        // h = S(g_i, g_j)
-
-                        let r = Self::divide(&h, generators).0;
-                        if let Some(lt_r) = Self::leading_term(&r) {
-                            // add remainder to the generators
-                            generators.push(&r * lt_r.coef.inv());
-                            m += 1;
-
-                            // start the process over
-                            continue 'outer;
-                        }
-                    } else {
-                        panic!("should not happen. yeah i know, joseph, 'parse don't validate'");
-                    }
-                }
-            }
-        } */
-
-        /* if Self::leading_term(&generators[i])
-            .unwrap()
-            .divides(&Self::leading_term(&generators[j]).unwrap())
-        {
-            generators.remove(j);
-            m -= 1;
-
-            // Self::buchberger_algorithm(generators);
-            continue 'outer;
+        #[inline]
+        fn pairs_iter(m: usize) -> impl Iterator<Item = (usize, usize)> {
+            (0..m).cartesian_product(0..m).filter(|(i, j)| i != j)
         }
 
-        if Self::leading_term(&generators[j])
-            .unwrap()
-            .divides(&Self::leading_term(&generators[i]).unwrap())
-        {
-            generators.remove(i);
-            m -= 1;
+        'minimize: loop {
+            break {
+                for (i, j) in pairs_iter(m) {
+                    if Self::leading_term(&generators[j])
+                        .unwrap()
+                        .divides(&Self::leading_term(&generators[i]).unwrap())
+                    {
+                        // `LT(g_i)` is superfluous
+                        generators.remove(i);
+                        m -= 1;
 
-            // Self::buchberger_algorithm(generators);
-            continue 'outer;
-        } */
+                        continue 'minimize;
+                    }
+                }
+            };
+        }
+
+        'reduce: loop {
+            break {
+                for (i, j) in pairs_iter(m) {
+                    for t in generators[i].terms() {
+                        // if a nonleading term of `g_i` is divisible by `LT(g_j)`
+                        if Self::leading_term(&generators[j]).unwrap().divides(t) {
+                            // we will replace `g` with a reduced equivalent
+                            let g = generators.remove(i);
+
+                            // `r` is remainder of `g mod (G \ {g})`
+                            let (g_rem, _) = Self::divide(&g, &generators);
+
+                            // replaces `g` with
+                            generators.push(g_rem);
+
+                            continue 'reduce;
+                        }
+                    }
+                }
+            };
+        }
     }
 }
 
@@ -390,13 +391,28 @@ mod tests {
         fn_vars! { Frac: x y }
         type CompQ = Computer<Frac, Lex>;
 
+        fn print_buchberger(g: &[Polynomial<Frac>]) {
+            let mut g = Vec::from(g);
+
+            println!("initial:");
+            pps!(g);
+
+            CompQ::buchberger_algorithm(&mut g);
+
+            println!("\nresult:");
+            pps!(g);
+            println!("--------------------");
+        }
+
+        print_buchberger(&[x(3) * y(1) - x(1) * y(2) + c(1), x(2) * y(2) - y(3) - c(1)]);
+
         let mut g = vec![x(3) * y(1) - x(1) * y(2) + c(1), x(2) * y(2) - y(3) - c(1)];
 
         println!("initial:");
         pps!(g);
 
         CompQ::buchberger_algorithm(&mut g);
-        
+
         println!("\nresult:");
         pps!(g);
 
