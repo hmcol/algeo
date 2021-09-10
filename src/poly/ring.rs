@@ -138,6 +138,7 @@ impl MDeg {
                 return false;
             }
         }
+        
         true
     }
 

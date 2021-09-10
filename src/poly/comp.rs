@@ -357,9 +357,7 @@ mod tests {
     #[cfg(test)]
     fn test_result_equality(f: &Poly, g: &[Poly]) {
         let (r, q) = Comp::divide(f, g);
-
         let f2 = q.iter().zip_eq(g).map(|(qi, gi)| qi * gi).fold(r, Add::add);
-
         poly_assert_eq(f, &f2);
     }
 
@@ -367,9 +365,7 @@ mod tests {
     fn reduction() {
         let q = |a, b| Polynomial::from(Frac::new(a, b));
         let c = |coef| q(coef, 1);
-
         fn_vars! { Frac: x y }
-
         type CompQ = Computer<Frac, Lex>;
 
         let f = c(5) * x(4) * y(3) + c(2) * x(2) * y(1) + c(3) * x(1) * y(2) + y(2) + c(3);

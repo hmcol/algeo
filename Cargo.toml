@@ -11,7 +11,7 @@ documentation = "https://docs.rs/algeo"
 repository = "https://github.com/hmcol/algeo"
 
 [package.metadata.docs.rs]
-rustdocflags = [ "--html-in-header", "./docs-header.html" ] # latex in docs
+rustdocflags = ["--html-in-header", "./docs-header.html"] # latex in docs
 
 [dependencies]
 xops = "0.1.1"
