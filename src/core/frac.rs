@@ -45,6 +45,14 @@ impl Frac {
     pub fn powi(&self, n: i32) -> Self {
         Frac::new_unchecked(self.numer.pow(n as u32), self.denom.pow(n as u32))
     }
+
+    pub fn signum(&self) -> i64 {
+        self.numer.signum()
+    }
+
+    pub fn recip(&self) -> Self {
+        Frac::new_unchecked(self.signum() * self.denom, self.signum() * self.numer)
+    }
 }
 
 impl Add for Frac {
@@ -129,7 +137,16 @@ impl_op_assign_for_frac_simple! { DivAssign, div_assign, div }
 
 impl std::fmt::Display for Frac {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}/{}", self.numer, self.denom)
+        if self.numer == 0 {
+            write!(f, "0")
+        } else if self.denom == 1 {
+            write!(f, "{}", self.numer)
+        } else {
+            write!(f, "{}/{}", self.numer, self.denom)
+
+            // bonus latex mode
+            // write!(f, "\\frac{{{}}}{{{}}}", self.numer, self.denom)
+        }
     }
 }
 

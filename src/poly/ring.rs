@@ -1,8 +1,7 @@
 use itertools::{EitherOrBoth, Itertools};
-use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::fmt;
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 use xops::binop;
 
 use crate::core::num::*;
@@ -18,6 +17,8 @@ type I = usize;
 type D = u8;
 
 /// Multidegree for a monomial; wraps a `Vec<D>`.
+///
+/// This is the treatment of multidegrees as (nonnegative) integer tuples.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct MDeg(pub Vec<D>);
 
@@ -75,7 +76,7 @@ impl MDeg {
 
     // hack until we can guarantee multidegrees never have trailing zeros
     pub fn is_zero(&self) -> bool {
-        self.0.len() == 0
+        self.0.is_empty()
     }
 
     /// returns the multidegree with the sole entry `idx: deg`
@@ -279,7 +280,7 @@ impl<F: Field> Term<F> {
     }
 
     pub fn divides(&self, other: &Term<F>) -> bool {
-        self.coef != F::ZERO && self.mdeg.is_succ(&other.mdeg)
+        !self.is_zero() && self.mdeg.is_succ(&other.mdeg)
     }
 
     pub fn try_div(&self, other: &Term<F>) -> Option<Term<F>> {
@@ -695,6 +696,7 @@ impl<F: Field> Sub for &Polynomial<F> {
 impl<F: Field> Mul<&Term<F>> for &Polynomial<F> {
     type Output = Polynomial<F>;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn mul(self, rhs: &Term<F>) -> Self::Output {
         if rhs.is_zero() || self.is_zero() {
             return Polynomial::zero();
@@ -721,9 +723,30 @@ impl<F: Field> Mul for &Polynomial<F> {
     }
 }
 
+#[binop(derefs)]
+impl<F: Field> Mul<F> for &Polynomial<F> {
+    type Output = Polynomial<F>;
+
+    #[inline]
+    fn mul(self, rhs: F) -> Self::Output {
+        self * Term::constant_unchecked(rhs)
+    }
+}
+
+#[binop(derefs)]
+impl<F: Field> Div<F> for &Polynomial<F> {
+    type Output = Polynomial<F>;
+
+    #[allow(clippy::suspicious_arithmetic_impl)]
+    #[inline]
+    fn div(self, rhs: F) -> Self::Output {
+        self * rhs.inv()
+    }
+}
+
 // shorthands ------------------------------------------------------------------
 
-macro_rules! var_fn {
+macro_rules! fn_var_term {
     (@with_doc $var:ident, $idx:literal, $doc_str:expr) => {
         #[doc = $doc_str]
         pub fn $var<F: Field>(deg: D) -> Term<F> {
@@ -746,19 +769,19 @@ macro_rules! var_fn {
         )
     };
     ($var:ident -> $idx:literal) => {
-        var_fn! { @with_doc $var, $idx,
-            var_fn!(@doc_of stringify!($var), stringify!($idx))
+        fn_var_term! { @with_doc $var, $idx,
+            fn_var_term!(@doc_of stringify!($var), stringify!($idx))
         }
     };
 }
 
-var_fn! { x -> 0 }
-var_fn! { y -> 1 }
-var_fn! { z -> 2 }
+fn_var_term! { x -> 0 }
+fn_var_term! { y -> 1 }
+fn_var_term! { z -> 2 }
 
-var_fn! { w -> 3 }
-var_fn! { u -> 4 }
-var_fn! { v -> 5 }
+fn_var_term! { w -> 3 }
+fn_var_term! { u -> 4 }
+fn_var_term! { v -> 5 }
 
 // display ---------------------------------------------------------------------
 
@@ -785,6 +808,9 @@ impl MDeg {
                 write!(f, "{}", ident)?;
             } else if deg != 0 {
                 write!(f, "{}{}", ident, superscript(deg))?;
+
+                // bonus latex mode
+                // write!(f, "{}^{{{}}}", ident, deg)?;
             }
         }
         Ok(())
@@ -803,9 +829,7 @@ pub fn superscript(n: u8) -> String {
         7 => String::from("⁷"),
         8 => String::from("⁸"),
         9 => String::from("⁹"),
-        n if n >= 10 => superscript(n / 10) + &superscript(n % 10),
-        // n if n < 0 => String::from("⁻") + &superscript(n.abs()),
-        _ => String::from("[bad deg]"),
+        _ => superscript(n / 10) + &superscript(n % 10),
     }
 }
 
@@ -834,7 +858,34 @@ impl fmt::Display for Polynomial<f64> {
         }
 
         for term in term_iter {
-            if term.coef < 0.0 {
+            if term.coef.is_sign_negative() {
+                write!(
+                    f,
+                    " - {}",
+                    Term::new_unchecked(-term.coef, term.mdeg.clone())
+                )?;
+            } else {
+                write!(f, " + {}", term)?;
+            }
+        }
+
+        // return
+        fmt::Result::Ok(())
+    }
+}
+
+impl fmt::Display for Polynomial<crate::core::frac::Frac> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut term_iter = self.terms.iter();
+
+        if let Some(term) = term_iter.next() {
+            write!(f, "{}", term)?;
+        } else {
+            return write!(f, "0");
+        }
+
+        for term in term_iter {
+            if term.coef.numer.is_negative() {
                 write!(
                     f,
                     " - {}",

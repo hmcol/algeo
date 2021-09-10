@@ -67,6 +67,10 @@ pub trait Field:
     + One
 {
     fn powi32(&self, p: i32) -> Self;
+    /// multiplicative inverse
+    fn inv(self) -> Self {
+        Self::ONE / self
+    }
 }
 
 macro_rules! field_impl {
@@ -75,6 +79,9 @@ macro_rules! field_impl {
             impl Field for $t {
                 fn powi32(&self, p: i32) -> Self {
                     self.powi(p)
+                }
+                fn inv(self) -> Self {
+                    self.recip()
                 }
             }
         )*

@@ -3,8 +3,8 @@ use algeo::poly::*;
 //use algeo::linalg::row_echelon::*;
 
 fn main() {
-    let p = x(1) + y(1);
-    let q = x(1) - y(1);
+    let p: Polynomial<f64> = x(1) + y(1);
+    let q: Polynomial<f64> = x(1) - y(1);
 
     println!("\n({})({}) = {}", p, q, &p * &q);
 

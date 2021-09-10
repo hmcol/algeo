@@ -2,6 +2,11 @@ use std::cmp::Ordering;
 
 use super::MDeg;
 
+/// A [Monomial Order](https://en.wikipedia.org/wiki/Monomial_order) for multidegrees.
+/// 
+/// Necessary conditions not checked by rust: 
+/// - well-order
+/// - respects multiplication: $\alpha \leq \beta \implies \alpha + \gamma \leq \beta + \gamma$, for all multidegrees $\alpha, \beta, \gamma \in \Z^n$.
 pub trait MonomialOrder {
     fn cmp(a: &MDeg, b: &MDeg) -> Ordering;
 }
