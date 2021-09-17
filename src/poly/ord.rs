@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use super::MDeg;
+use super::mdeg::MultiDegree;
 
 /// A [Monomial Order](https://en.wikipedia.org/wiki/Monomial_order) for multidegrees.
 ///
@@ -8,7 +8,7 @@ use super::MDeg;
 /// - well-order
 /// - respects multiplication: $\alpha \leq \beta \implies \alpha + \gamma \leq \beta + \gamma$, for all multidegrees $\alpha, \beta, \gamma \in \Z^n$.
 pub trait MonomialOrder {
-    fn cmp(a: &MDeg, b: &MDeg) -> Ordering;
+    fn cmp(a: &MultiDegree, b: &MultiDegree) -> Ordering;
 }
 
 /// The [Lexicographic Order](https://w.wiki/3zwi) on multidegrees.
@@ -19,7 +19,7 @@ pub trait MonomialOrder {
 pub struct Lex;
 
 impl MonomialOrder for Lex {
-    fn cmp(a: &MDeg, b: &MDeg) -> Ordering {
+    fn cmp(a: &MultiDegree, b: &MultiDegree) -> Ordering {
         let mut iter_a = a.degs();
         let mut iter_b = b.degs();
 
@@ -53,7 +53,7 @@ impl MonomialOrder for Lex {
 pub struct RevLex;
 
 impl MonomialOrder for RevLex {
-    fn cmp(a: &MDeg, b: &MDeg) -> Ordering {
+    fn cmp(a: &MultiDegree, b: &MultiDegree) -> Ordering {
         match a.len().cmp(&b.len()) {
             Ordering::Equal => {
                 for (deg_a, deg_b) in a.degs().zip(b.degs()).rev() {
@@ -77,7 +77,7 @@ impl MonomialOrder for RevLex {
 ///
 /// Important note: this is not a 'monomial order' as it is not antisymmetric;
 /// should probably be moved or hidden to avoid confusion
-pub fn grad(a: &MDeg, b: &MDeg) -> Ordering {
+pub fn grad(a: &MultiDegree, b: &MultiDegree) -> Ordering {
     a.total_deg().cmp(&b.total_deg())
 }
 
@@ -87,7 +87,7 @@ pub fn grad(a: &MDeg, b: &MDeg) -> Ordering {
 pub struct GrLex;
 
 impl MonomialOrder for GrLex {
-    fn cmp(a: &MDeg, b: &MDeg) -> Ordering {
+    fn cmp(a: &MultiDegree, b: &MultiDegree) -> Ordering {
         match grad(a, b) {
             Ordering::Equal => Lex::cmp(a, b),
             lt_or_gt => lt_or_gt,
@@ -102,7 +102,7 @@ impl MonomialOrder for GrLex {
 pub struct GRevLex;
 
 impl MonomialOrder for GRevLex {
-    fn cmp(a: &MDeg, b: &MDeg) -> Ordering {
+    fn cmp(a: &MultiDegree, b: &MultiDegree) -> Ordering {
         match grad(a, b) {
             Ordering::Equal => RevLex::cmp(a, b).reverse(),
             lt_or_gt => lt_or_gt,
@@ -122,15 +122,15 @@ mod order_tests {
     use std::cmp::Ordering;
 
     use super::*;
-    use crate::poly::MDeg;
+    use crate::poly::mdeg::MultiDegree;
 
     macro_rules! mdeg {
         ($( $deg:expr ),* $(,)?) => {
-            &MDeg::from_vec(vec![ $( $deg ),* ])
+            &MultiDegree::from_vec(vec![ $( $deg ),* ])
         };
     }
 
-    fn _dbg_suite(ord: fn(&MDeg, &MDeg) -> Ordering) {
+    fn _dbg_suite(ord: fn(&MultiDegree, &MultiDegree) -> Ordering) {
         let d = |s: &[u8]| format!("{:?}{:?}{:?}", s[0], s[1], s[2]);
 
         let c = |o: Ordering| match o {
@@ -142,8 +142,8 @@ mod order_tests {
         let iter = (0..3).map(|_| 0..3).multi_cartesian_product();
 
         for (ref a, ref b) in iter.clone().cartesian_product(iter) {
-            let mdeg_a = &MDeg::from_vec(a.clone());
-            let mdeg_b = &MDeg::from_vec(b.clone());
+            let mdeg_a = &MultiDegree::from_vec(a.clone());
+            let mdeg_b = &MultiDegree::from_vec(b.clone());
 
             if super::grad(mdeg_a, mdeg_b).is_eq() {
                 println!("{} {} {}", d(a), c(ord(mdeg_a, mdeg_b)), d(b));
@@ -270,7 +270,7 @@ mod order_tests {
         for x in 0..D {
             for y in 0..(D - x) {
                 for z in 0..(D - x - y) {
-                    vecs.push(MDeg::from_vec(vec![x, y, z]));
+                    vecs.push(MultiDegree::from_vec(vec![x, y, z]));
                 }
             }
         }

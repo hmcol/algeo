@@ -4,8 +4,9 @@ use itertools::{EitherOrBoth, Itertools};
 
 use crate::core::num::Field;
 
+use super::mdeg::MultiDegree;
 use super::ord::MonomialOrder;
-use super::ring::*;
+use super::elts::*;
 
 /// Handler for computations related to finding Gröbner bases.
 ///
@@ -125,7 +126,7 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
         // clean operation:
         // - trust that `s.mdeg` and `t.mdeg` are clean
         // - taking either or max will not spoil
-        Term::monic(MDeg(
+        Term::monic(MultiDegree(
             s.mdeg
                 .degs()
                 .zip_longest(t.mdeg.degs())
@@ -176,6 +177,7 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
         true
     }
 
+    #[allow(clippy::mut_range_bound)]
     pub fn buchberger_algorithm(generators: &mut Vec<Polynomial<F>>) {
         let mut m = generators.len();
         let mut i = 0;
@@ -198,6 +200,7 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
                     m += 1;
 
                     // start the process over
+                    
                     i = 0;
                     continue 'extend;
                 }
@@ -258,24 +261,13 @@ mod tests {
     use super::*;
     use crate::{
         core::frac::Frac,
-        poly::{MDeg, Polynomial, Term},
+        poly::{elts::Polynomial, elts::Term},
     };
 
     use super::super::ord::Lex;
 
     type Poly = Polynomial<f64>;
     type Comp = Computer<f64, Lex>;
-
-    #[allow(unused)]
-    macro_rules! fn_vars {
-        ($t:ty: $($var:ident)*) => {
-            $(
-                fn $var(d: u8) -> Polynomial<$t> {
-                    crate::poly::$var(d).into()
-                }
-            )*
-        };
-    }
 
     #[allow(unused)]
     macro_rules! pp {
@@ -296,7 +288,7 @@ mod tests {
     #[allow(unused)]
     #[test]
     fn dbg_stuff() {
-        let c = |coef| Poly::constant(coef);
+        let c = |coef: f64| Poly::from(coef);
         fn_vars! { f64: x y z }
 
         /* let f = y(1);
@@ -338,7 +330,7 @@ mod tests {
         (0..vars)
             .map(|_| (0..=max_deg).rev())
             .multi_cartesian_product()
-            .map(MDeg::from_vec)
+            .map(MultiDegree::from_vec)
             .filter(|mdeg| mdeg.total_deg() <= max_deg)
             .map(|mdeg| {
                 (0..=max_coef)
