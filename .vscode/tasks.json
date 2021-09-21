@@ -1,0 +1,50 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cargo",
+			"command": "run",
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "rust: cargo run (dev)",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"presentation": {
+				"clear": true
+			}
+		},
+		{
+			"type": "cargo",
+			"command": "run",
+			"args": [
+				"--release"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "rust: cargo run (release)",
+			"group": "build",
+			"presentation": {
+				"clear": true
+			}
+		},
+		{
+			"type": "cargo",
+			"command": "doc",
+			"args": [
+				"--no-deps"
+			],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "rust: cargo doc",
+			"group": "build",
+			"presentation": {
+				"clear": true
+			}
+		}
+	],
+}
