@@ -36,6 +36,7 @@
 			"itertools",
 			"linalg",
 			"mdeg",
+			"monic",
 			"Monoid",
 			"multidegree",
 			"multidegrees",
