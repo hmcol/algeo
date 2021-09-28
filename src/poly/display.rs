@@ -110,7 +110,7 @@ impl Display for Polynomial<crate::core::frac::Frac> {
         }
 
         for term in term_iter {
-            if term.coef.numer.is_negative() {
+            if term.coef.numer.is_neg() {
                 write!(
                     f,
                     " - {}",

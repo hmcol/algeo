@@ -331,7 +331,7 @@ impl<F: Field> Add<&Term<F>> for &Polynomial<F> {
             terms[i].coef += rhs.coef;
 
             // could be that `self.terms[i] == 0`; must sanitize
-            if self.terms[i].is_zero() {
+            if terms[i].is_zero() {
                 terms.remove(i);
             }
         } else {

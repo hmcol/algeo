@@ -4,9 +4,9 @@ use itertools::{EitherOrBoth, Itertools};
 
 use crate::core::num::Field;
 
+use super::elts::*;
 use super::mdeg::MultiDegree;
 use super::ord::MonomialOrder;
-use super::elts::*;
 
 /// Handler for computations related to finding Gröbner bases.
 ///
@@ -177,12 +177,11 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
         true
     }
 
-    #[allow(clippy::mut_range_bound)]
-    pub fn buchberger_algorithm(generators: &mut Vec<Polynomial<F>>) {
-        let mut m = generators.len();
+    /// Extends a set of generators for an ideal to a Gröbner basis for the ideal.
+    fn buchberger_extend(generators: &mut Vec<Polynomial<F>>) {
         let mut i = 0;
 
-        'extend: while i < m {
+        'outer: while i < generators.len() {
             for j in 0..i {
                 // remainder of `S(g_i, g_j)` after division by `generator`
                 let (r, _) = Self::divide(
@@ -197,61 +196,77 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
 
                     // add remainder to the generators
                     generators.push(&r / lc_r);
-                    m += 1;
 
                     // start the process over
-                    
+
                     i = 0;
-                    continue 'extend;
+                    continue 'outer;
                 }
             }
             i += 1;
         }
+    }
 
-        #[inline]
-        fn pairs_iter(m: usize) -> impl Iterator<Item = (usize, usize)> {
-            (0..m).cartesian_product(0..m).filter(|(i, j)| i != j)
-        }
-
-        'minimize: loop {
+    /// Removes elements from a Gröbner basis until it is a minimal Gröbner basis.
+    ///
+    /// That is, when no leading terms divide other leading terms in the basis.
+    fn buchberger_minimize(generators: &mut Vec<Polynomial<F>>) {
+        'outer: loop {
             break {
-                for (i, j) in pairs_iter(m) {
+                for (i, j) in pairs_iter(generators.len()) {
                     if Self::leading_term(&generators[j])
                         .unwrap()
                         .divides(&Self::leading_term(&generators[i]).unwrap())
                     {
                         // `LT(g_i)` is superfluous
                         generators.remove(i);
-                        m -= 1;
 
-                        continue 'minimize;
+                        continue 'outer;
                     }
                 }
             };
         }
+    }
 
-        'reduce: loop {
+    /// Modifies the elements in a Gröbner basis so that it becomes a reduced Gröbner basis.
+    ///
+    /// That is, replaces each generator with its remainder modulo the other generators.
+    fn buchberger_reduce(generators: &mut Vec<Polynomial<F>>) {
+        'outer: loop {
             break {
-                for (i, j) in pairs_iter(m) {
+                for (i, j) in pairs_iter(generators.len()) {
                     for t in generators[i].terms() {
                         // if a nonleading term of `g_i` is divisible by `LT(g_j)`
                         if Self::leading_term(&generators[j]).unwrap().divides(t) {
                             // we will replace `g` with a reduced equivalent
                             let g = generators.remove(i);
 
-                            // `r` is remainder of `g mod (G \ {g})`
+                            // `g_rem` is remainder of `g mod (G \ {g})`
                             let (g_rem, _) = Self::divide(&g, &generators);
 
-                            // replaces `g` with
+                            // replaces `g` with its remainder
                             generators.push(g_rem);
 
-                            continue 'reduce;
+                            continue 'outer;
                         }
                     }
                 }
             };
         }
     }
+
+    pub fn buchberger_algorithm(generators: &mut Vec<Polynomial<F>>) {
+        Self::buchberger_extend(generators);
+        Self::buchberger_minimize(generators);
+        Self::buchberger_reduce(generators);
+    }
+}
+
+// utils
+
+#[inline]
+fn pairs_iter(n: usize) -> impl Iterator<Item = (usize, usize)> {
+    (0..n).cartesian_product(0..n).filter(|(i, j)| i != j)
 }
 
 #[cfg(test)]
@@ -356,8 +371,8 @@ mod tests {
 
     #[test]
     fn reduction() {
-        let q = |a, b| Polynomial::from(Frac::new(a, b));
-        let c = |coef| q(coef, 1);
+        // let q = |a, b| Polynomial::from(Frac::new_i64(a, b));
+        let c = |coef| Polynomial::from(Frac::new_i64(coef, 1));
         fn_vars! { Frac: x y }
         type CompQ = Computer<Frac, Lex>;
 
@@ -378,7 +393,7 @@ mod tests {
 
     #[test]
     fn buchberger() {
-        let q = |a, b| Polynomial::from(Frac::new(a, b));
+        let q = |a, b| Polynomial::from(Frac::new_i64(a, b));
         let c = |coef| q(coef, 1);
         fn_vars! { Frac: x y }
         type CompQ = Computer<Frac, Lex>;
