@@ -1,29 +1,10 @@
-use std::{collections::BTreeMap, ops::{Add, Div, Mul, Neg, Rem, Sub}};
+use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Debug)]
-struct Integer(i64);
 
-macro_rules! pull_unop {
-    ($($func:ident)*) => {
-        $(
-            #[inline]
-            fn $func(self) -> Integer {
-                Integer(self.0.$func())
-            }
-        )*
-    };
-}
 
-macro_rules! pull_check {
-    ($($func:ident)*) => {
-        $(
-            #[inline]
-            fn $func(self) -> bool {
-                self.0.$func()
-            }
-        )*
-    };
-}
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Debug, Hash)]
+pub struct Integer(pub i64);
+
 
 /// possible unary ops ( fn op(self) -> Self ):
 /// - abs
@@ -42,21 +23,47 @@ macro_rules! pull_check {
 /// - pow
 /// - lcm
 impl Integer {
-    pull_unop! { abs signum }
-    pull_check! { is_positive is_negative }
-
+    /// Signum of an integer:
+    /// - `-1` if negative
+    /// - `0` if zero
+    /// - `+1` if positive
     #[inline]
-    fn is_zero(self) -> bool {
-        self.0 == 0
+    pub fn sgn(self) -> Self {
+        Integer(self.0.signum())
     }
 
+    /// Check whether `self` is positive.
     #[inline]
-    fn is_one(self) -> bool {
-        self.0 == 1
+    pub fn is_pos(self) -> bool {
+        self.0.is_positive()
     }
 
+    /// Check whether `self` is negative.
+    #[inline]
+    pub fn is_neg(self) -> bool {
+        self.0.is_negative()
+    }
 
-    fn gcd(a: Integer, b: Integer) -> Integer {
+    /// Absolute value of an integer:
+    /// - `self` for nonnegative
+    /// - `-self` for negative
+    #[inline]
+    pub fn abs(self) -> Self {
+        Integer(self.0.abs())
+    }
+
+    /// Computes `self` to the power of `exp`
+    /// 
+    /// NOTE: `exp` is cast to a `u32` before computation
+    #[inline]
+    pub fn pow(self, exp: Integer) -> Self {
+        Integer(self.0.pow(exp.0 as u32))
+    }
+
+    /// Computes the greatest common divisor of `a` and `b`.
+    /// 
+    /// That is, the largest nonnegative integer which divides both.
+    pub fn gcd(a: Self, b: Self) -> Self {
         let mut a = a.0;
         let mut b = b.0;
         let mut t: i64;
@@ -69,6 +76,13 @@ impl Integer {
 
         a.abs().into()
     }
+
+    /// Computes the least common multiple of `a` and `b`.
+    /// 
+    /// That is, the smallest nonnegative integer which both divide.
+    pub fn lcm(a: Integer, b: Integer) -> Integer {
+        a / Self::gcd(a, b) * b
+    }
 }
 
 impl From<i64> for Integer {
@@ -77,6 +91,8 @@ impl From<i64> for Integer {
         Integer(val)
     }
 }
+
+
 
 macro_rules! impl_integer_binop {
     ($($Trait:ident, $func:ident);*) => {
@@ -97,13 +113,37 @@ impl_integer_binop! { Add, add; Sub, sub; Mul, mul; Div, div; Rem, rem }
 impl Neg for Integer {
     type Output = Self;
 
-    pull_unop! { neg }
+    fn neg(self) -> Self::Output {
+        Integer(self.0.neg())
+    }
 }
 
+
+impl std::fmt::Display for Integer {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::Integer;
 
-    fn integer() {}
+    #[test]
+    fn test_gcd() {
+        let gcd = |a, b| Integer::gcd(Integer(a), Integer(b)).0;
+
+        assert_eq!(gcd(-10, -15), 5);
+        assert_eq!(gcd(-5, -10), 5);
+        assert_eq!(gcd(-0, -1), 1);
+        assert_eq!(gcd(-5, -6), 1);
+        assert_eq!(gcd(-80, -20), 20);
+    }
+
+    #[test]
+    fn integer() {
+
+
+    }
 }

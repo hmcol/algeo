@@ -1,15 +1,16 @@
+use std::cmp::Ordering;
 use std::iter::{Product, Sum};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
-use std::cmp::Ordering;
 
 use super::frac::Frac;
-
+use super::int::Integer;
 
 // zero ------------------------------------------------------------------------
 
 pub trait Zero: Sized + Add<Self, Output = Self> {
     /// if this doesn't work use function, like joseph said
     const ZERO: Self;
+    fn is_zero(&self) -> bool;
 }
 
 macro_rules! int_zero_impl {
@@ -17,6 +18,11 @@ macro_rules! int_zero_impl {
         $(
             impl Zero for $t {
                 const ZERO: Self = 0 as Self;
+
+                #[inline]
+                fn is_zero(&self) -> bool {
+                    *self == Self::ZERO
+                }
             }
         )*
     }
@@ -24,8 +30,25 @@ macro_rules! int_zero_impl {
 
 int_zero_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 
+impl Zero for Integer {
+    const ZERO: Self = Integer(0);
+
+    #[inline]
+    fn is_zero(&self) -> bool {
+        self.0 == 0
+    }
+}
+
 impl Zero for Frac {
-    const ZERO: Frac = Frac::zero();
+    const ZERO: Self = Frac {
+        numer: Integer::ZERO,
+        denom: Integer::ONE,
+    };
+
+    #[inline]
+    fn is_zero(&self) -> bool {
+        self.numer.is_zero()
+    }
 }
 
 // one -------------------------------------------------------------------------
@@ -33,6 +56,7 @@ impl Zero for Frac {
 pub trait One: Sized + Mul {
     /// if this doesn't work use function, like joseph said
     const ONE: Self;
+    fn is_one(&self) -> bool;
 }
 
 macro_rules! one_impl {
@@ -40,6 +64,11 @@ macro_rules! one_impl {
         $(
             impl One for $t {
                 const ONE: Self = 1 as Self;
+
+                #[inline]
+                fn is_one(&self) -> bool {
+                    *self == Self::ONE
+                }
             }
         )*
     }
@@ -47,10 +76,31 @@ macro_rules! one_impl {
 
 one_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 
-impl One for Frac {
-    const ONE: Frac = Frac::one();
+impl One for Integer {
+    const ONE: Self = Integer(1);
+    
+    #[inline]
+    fn is_one(&self) -> bool {
+        self.0 == 1
+    }
 }
 
+impl One for Frac {
+    const ONE: Self = Frac {
+        numer: Integer::ONE,
+        denom: Integer::ONE,
+    };
+
+    #[inline]
+    fn is_one(&self) -> bool {
+        // due to how Frac is implemented, being one always means that numer and denom are both one, so the following could be used and is sort of more semantic
+        // self.numer.is_one() && self.denom.is_one()
+
+        // however, doing only one comparison is quicker and more (unnecessarily) general
+        // i.e., this would work even if fractions were not simplest form sanitized
+        self.numer == self.denom
+    }
+}
 // field -----------------------------------------------------------------------
 
 pub trait Field:
@@ -59,11 +109,18 @@ pub trait Field:
     + std::fmt::Debug
     + std::fmt::Display
     + PartialEq
-    + Add<Self, Output = Self> + AddAssign<Self> + Sum
-    + Sub<Self, Output = Self> + SubAssign<Self> + Neg<Output = Self>
+    + Add<Self, Output = Self>
+    + AddAssign<Self>
+    + Sum
+    + Sub<Self, Output = Self>
+    + SubAssign<Self>
+    + Neg<Output = Self>
     + Zero
-    + Mul<Self, Output = Self> + MulAssign<Self> + Product
-    + Div<Self, Output = Self> + DivAssign<Self>
+    + Mul<Self, Output = Self>
+    + MulAssign<Self>
+    + Product
+    + Div<Self, Output = Self>
+    + DivAssign<Self>
     + One
 {
     fn powi32(&self, p: i32) -> Self;
@@ -77,8 +134,8 @@ macro_rules! field_impl {
     ($($t:ty)*) => {
         $(
             impl Field for $t {
-                fn powi32(&self, p: i32) -> Self {
-                    self.powi(p)
+                fn powi32(&self, exp: i32) -> Self {
+                    self.powi(exp)
                 }
                 fn inv(self) -> Self {
                     self.recip()
@@ -119,11 +176,11 @@ impl EpsilonEquality for Frac {
 // Numerical Stability Norm ----------------------------------------------------
 
 /// Partial order to indicate which element has greater stability.
-/// More precisely, it is used to determine what number is best to divide by. 
-/// For lu decomposition (or just Gaussian elimination in general), it is 
+/// More precisely, it is used to determine what number is best to divide by.
+/// For lu decomposition (or just Gaussian elimination in general), it is
 /// always best to divide by large floats, since this will lead to the least
 /// rounding/ float point problems.
-/// 
+///
 /// Needs to satisfy 0<= every number, (and every number !<= 0) in order
 /// to avoid divide by 0.
 pub trait StabilityCmp {
