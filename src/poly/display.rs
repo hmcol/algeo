@@ -99,7 +99,7 @@ impl Display for Polynomial<f64> {
     }
 }
 
-impl Display for Polynomial<crate::core::frac::Frac> {
+impl Display for Polynomial<crate::core::num::Rational> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         let mut term_iter = self.terms.iter();
 

@@ -2,7 +2,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 use xops::binop;
 
 use super::mdeg::MultiDegree;
-use crate::core::num::*;
+use crate::core::num::Field;
 
 // structs ---------------------------------------------------------------------
 

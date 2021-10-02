@@ -255,6 +255,7 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
         }
     }
 
+    /// Turns `generator` into a reduced Gröbner basis, using Buchberger's algorithm.
     pub fn buchberger_algorithm(generators: &mut Vec<Polynomial<F>>) {
         Self::buchberger_extend(generators);
         Self::buchberger_minimize(generators);
@@ -275,7 +276,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        core::frac::Frac,
+        core::num::Rational,
         poly::{elts::Polynomial, elts::Term},
     };
 
@@ -372,9 +373,9 @@ mod tests {
     #[test]
     fn reduction() {
         // let q = |a, b| Polynomial::from(Frac::new_i64(a, b));
-        let c = |coef| Polynomial::from(Frac::new_i64(coef, 1));
-        fn_vars! { Frac: x y }
-        type CompQ = Computer<Frac, Lex>;
+        let c = |coef| Polynomial::from(Rational::new_i64(coef, 1));
+        fn_vars! { Rational: x y }
+        type CompQ = Computer<Rational, Lex>;
 
         let f = c(5) * x(4) * y(3) + c(2) * x(2) * y(1) + c(3) * x(1) * y(2) + y(2) + c(3);
         let g = c(8) * x(5) * y(2) + x(3) + c(3) * x(2) * y(2) + y(4) + c(6);
@@ -393,12 +394,12 @@ mod tests {
 
     #[test]
     fn buchberger() {
-        let q = |a, b| Polynomial::from(Frac::new_i64(a, b));
+        let q = |a, b| Polynomial::from(Rational::new_i64(a, b));
         let c = |coef| q(coef, 1);
-        fn_vars! { Frac: x y }
-        type CompQ = Computer<Frac, Lex>;
+        fn_vars! { Rational: x y }
+        type CompQ = Computer<Rational, Lex>;
 
-        fn print_buchberger(g: &[Polynomial<Frac>]) {
+        fn print_buchberger(g: &[Polynomial<Rational>]) -> Vec<Polynomial<Rational>> {
             let mut g = Vec::from(g);
 
             println!("initial:");
@@ -409,34 +410,18 @@ mod tests {
             println!("\nresult:");
             pps!(g);
             println!("--------------------");
+
+            g
         }
 
         print_buchberger(&[x(3) * y(1) - x(1) * y(2) + c(1), x(2) * y(2) - y(3) - c(1)]);
 
-        let mut g = vec![x(3) * y(1) - x(1) * y(2) + c(1), x(2) * y(2) - y(3) - c(1)];
-
-        println!("initial:");
-        pps!(g);
-
-        CompQ::buchberger_algorithm(&mut g);
-
-        println!("\nresult:");
-        pps!(g);
-
-        println!("--------------------");
-
-        let mut g = vec![
+        print_buchberger(&[
             x(2) + x(1) * y(5) + y(4),
             x(1) * y(6) - x(1) * y(3) + y(5) - y(2),
             x(1) * y(5) - x(1) * y(2),
-        ];
+        ]);
 
-        println!("initial:");
-        pps!(g);
-
-        CompQ::buchberger_algorithm(&mut g);
-
-        println!("\nresult:");
-        pps!(g);
+        // need to implement equality for polynomials, bases, etc. before proper tests can be written
     }
 }

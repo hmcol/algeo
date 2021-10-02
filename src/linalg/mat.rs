@@ -401,7 +401,7 @@ impl<F: Field + EpsilonEquality> EpsilonEquality for Mat<F> {
 #[cfg(test)]
 mod tests {
     use super::Mat;
-    use crate::core::{frac::Frac, num::Field};
+    use crate::core::num::{Field, Rational};
 
     macro_rules! mat {
 		($($t:tt)*) => {
@@ -530,24 +530,24 @@ mod tests {
             2,
             2,
             vec![
-				Frac::new(1,2), Frac::new(1,3),
-				Frac::new(1,4), Frac::new(1,5)
+				Rational::new_i64(1, 2), Rational::new_i64(1, 3),
+				Rational::new_i64(1, 4), Rational::new_i64(1, 5)
 			],
         );
         let mat9 = Mat::new(
             2,
             1,
             vec![
-				Frac::new(4,1),
-				Frac::new(15,1),
+				Rational::new_i64(4, 1),
+				Rational::new_i64(15, 1),
 			],
         );
         let mat10 = Mat::new(
             2,
             1,
             vec![
-				Frac::new(7,1),
-				Frac::new(4,1),
+				Rational::new_i64(7, 1),
+				Rational::new_i64(4, 1),
 			],
         );
 
