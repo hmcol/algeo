@@ -1,6 +1,6 @@
 use itertools::Itertools;
 
-use crate::core::num::{EpsilonEquality, Field, StabilityCmp};
+use crate::{core::num::{EpsilonEquality, Field, StabilityCmp}};
 
 
 use super::mat::Mat;
@@ -50,7 +50,7 @@ impl<F: Field + StabilityCmp + EpsilonEquality + PartialOrd> Cone<F> {
 			}
 
 			// (2) get a normal (there are potentially multiple in dim != ambient_dim)
-			let mut subset_kernel = subset_rref.compute_kernel();
+			let subset_kernel = subset_rref.compute_kernel();
 			let mut normal = subset_kernel[0].clone();
 
 			// (3) check that all generators are on one side
@@ -62,7 +62,7 @@ impl<F: Field + StabilityCmp + EpsilonEquality + PartialOrd> Cone<F> {
 					_ => true
 				};
 				if !is_above {
-					normal.scale(F::ZERO-F::ONE);
+					normal *= F::ZERO - F::ONE;
 				}
 
 				// check that the remaining generators "are above" normal

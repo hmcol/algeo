@@ -150,349 +150,312 @@ impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
 
 // Row Equivalent Forms --------------------------------------------------------
 
-/// Intended to be used as pair of invertible matrix `p` and row equivalent
-/// matrix `b` such that `p*a=b`. In the particular case that `b` is the
-/// identity, `p` is the inverse of `a`.
-pub trait RowEquivalentForm<F: Field> {
-    fn p(&mut self) -> &mut Mat<F>;
-    fn b(&mut self) -> &mut Mat<F>;
-
-    fn permute(&mut self, r1: usize, r2: usize) {
-        self.p().permute_rows(r1, r2);
-        self.b().permute_rows(r1, r2);
-    }
-
-    fn scale(&mut self, r: usize, scalar: F) {
-        self.p().scale_row(r, scalar);
-        self.b().scale_row(r, scalar);
-    }
-
-    /// Performs replacement operation to clear all entries in column under the
-    /// given row. Assumes `self[(r,c)] == F::ONE`.
-    fn replace_col_under_row(&mut self, r: usize, c: usize) {
-        for r2 in (r + 1)..self.b().rows() {
-            let scalar2 = self.b()[(r2, c)];
-            self.p().replace_row(r, r2, F::ZERO - scalar2);
-            self.b().replace_row(r, r2, F::ZERO - scalar2);
-        }
-    }
-
-    /// Performs replacement operation to clear all entries in column above the
-    /// given row. Assumes `self[(r,c)] == F::ONE`.
-    fn replace_col_above_row(&mut self, r: usize, c: usize) {
-        for r2 in 0..r {
-            let scalar2 = self.b()[(r2, c)];
-            self.p().replace_row(r, r2, F::ZERO - scalar2);
-            self.b().replace_row(r, r2, F::ZERO - scalar2);
-        }
-    }
+/// Pair of invertible matrix `p` and row equivalent matrix `b` such that
+/// `p*a=b`. In the particular case that `b` is the identity, `p` is the
+/// inverse of `a`.
+pub struct RowEquivalentForm<'a, F: Field, const IS_ECHELON: bool, const IS_REDUCED: bool> {
+	/// Inverible matrix `p` that transforms `original` to `b`.
+	p: Mat<F>,
+	/// Row-equivalent matrix `b`.
+	b: Mat<F>,
+	/// Reference to original matrix.
+	original: &'a Mat<F>
 }
 
-/// Struct containing original matrix `original`, row echelon form `b`, and
-/// product of row operations `p`.
-pub struct RowEchelonForm<'a, F: Field> {
-    pub p: Mat<F>,
-    pub b: Mat<F>,
-    pub original: &'a Mat<F>,
+impl<'a, F: Field, const E: bool, const R: bool> RowEquivalentForm<'a, F, E, R> {
+
+	fn permute_rows(&mut self, r1: usize, r2: usize){
+		self.p.permute_rows(r1, r2);
+		self.b.permute_rows(r1, r2);
+	}
+
+	fn scale_row(&mut self, r: usize, scalar: F){
+		self.p.scale_row(r, scalar);
+		self.b.scale_row(r, scalar);
+	}
+
+	/// Performs replacement operation to clear all entries in column under the
+	/// given row. Assumes `self[(r,c)] == F::ONE`.
+	fn replace_col_under_row(&mut self, r: usize, c: usize) {
+		for r2 in (r+1)..self.b.rows() {
+			let scalar2 = self.b[(r2,c)];
+			self.p.replace_row(r, r2, F::ZERO-scalar2);
+			self.b.replace_row(r, r2, F::ZERO-scalar2);
+		}
+	}
+
+	/// Performs replacement operation to clear all entries in column above the
+	/// given row. Assumes `self[(r,c)] == F::ONE`.
+	fn replace_col_above_row(&mut self, r: usize, c: usize) {
+		for r2 in 0..r {
+			let scalar2 = self.b[(r2,c)];
+			self.p.replace_row(r, r2, F::ZERO-scalar2);
+			self.b.replace_row(r, r2, F::ZERO-scalar2);
+		}
+	}
 }
 
-impl<'a, F: Field> RowEquivalentForm<F> for RowEchelonForm<'a, F> {
-    fn p(&mut self) -> &mut Mat<F> {
-        &mut self.p
-    }
+type RowEchelonForm<'a, F> = RowEquivalentForm<'a, F, true, false>;
+type ReducedRowEchelonForm<'a, F> = RowEquivalentForm<'a, F, true, true>;
 
-    fn b(&mut self) -> &mut Mat<F> {
-        &mut self.b
-    }
+
+impl<'a, F: Field + EpsilonEquality, const R: bool> RowEquivalentForm<'a, F, true, R> {
+
+	/// Computes the nullity (dimension of the kernel)
+	pub fn nullity(&self) -> usize {
+		self.b.cols() - self.rank()
+	}
+
+	/// Computes the rank (dimension of the range)
+	pub fn rank(&self) -> usize {
+		self.b.rows() - self.b.zero_rows()
+	}
 }
 
-/// Struct containing original matrix `original`, reduced row echelon form `b`,
-/// and product of row operations `p`.
-pub struct ReducedRowEchelonForm<'a, F: Field> {
-    pub p: Mat<F>,
-    pub rref: Mat<F>,
-    pub original: &'a Mat<F>,
-}
-
-impl<'a, F: Field> RowEquivalentForm<F> for ReducedRowEchelonForm<'a, F> {
-    fn p(&mut self) -> &mut Mat<F> {
-        &mut self.p
-    }
-
-    fn b(&mut self) -> &mut Mat<F> {
-        &mut self.rref
-    }
-}
 
 impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
-    /// Computes row echelon form
-    pub fn row_echelon(&self) -> RowEchelonForm<F> {
-        let n = self.rows();
-        let m = self.cols();
 
-        let mut form = RowEchelonForm {
-            b: self.clone(),
-            p: Mat::identity(n),
-            original: &self,
-        };
+	/// Computes row echelon form
+	pub fn row_echelon(&self) -> RowEchelonForm<F> {
+		let n = self.rows();
+		let m = self.cols();
 
-        // row that hasn't been cleared yet
-        let mut r = 0;
+		let mut form = RowEquivalentForm {
+			b: self.clone(),
+			p: Mat::identity(n),
+			original: &self
+		};
 
-        for c in 0..m {
-            if r >= n {
-                break;
-            }
+		// row that hasn't been cleared yet
+		let mut r = 0;
 
-            if let Some((stable_index, scalar)) = form.b.get_stable_column_index_under_row(c, r) {
-                form.permute(r, stable_index);
-                form.scale(r, F::ONE / scalar);
-                form.replace_col_under_row(r, c);
+		for c in 0..m {
+			if r >= n {
+				break;
+			}
 
-                r += 1;
-            }
-        }
-
-        form
-    }
+			if let Some((stable_index, scalar)) = form.b.get_stable_column_index_under_row(c, r) {
+				form.permute_rows(r, stable_index);
+				form.scale_row(r, F::ONE/scalar);
+				form.replace_col_under_row(r, c);
+				
+				r += 1;
+			}
+		}
+		
+		form
+	}
 }
 
+
 impl<'a, F: Field + StabilityCmp + EpsilonEquality> RowEchelonForm<'a, F> {
-    /// Computes the nullity (dimension of the kernel)
-    pub fn nullity(&self) -> usize {
-        self.b.cols() - self.rank()
-    }
 
-    /// Computes the rank (dimension of the range)
-    pub fn rank(&self) -> usize {
-        self.b.rows() - self.b.zero_rows()
-    }
+	/// Computes reduced row echelon form
+	pub fn to_rref(self) -> ReducedRowEchelonForm<'a, F> {
+		let n = self.b.rows();
 
-    /// Computes reduced row echelon form
-    pub fn to_rref(self) -> ReducedRowEchelonForm<'a, F> {
-        let n = self.b.rows();
+		let mut form = ReducedRowEchelonForm {
+			p: self.p,
+			b: self.b,
+			original: self.original
+		};
 
-        let mut form = ReducedRowEchelonForm {
-            p: self.p,
-            rref: self.b,
-            original: self.original,
-        };
-
-        for r in (1..n).rev() {
-            if let Some(c) = form.rref.index_of_first_nonzero_entry(r) {
-                form.replace_col_above_row(r, c);
-            }
-        }
-
-        form
-    }
+		for r in (1..n).rev() {
+			if let Some(c) = form.b.index_of_first_nonzero_entry(r){
+				form.replace_col_above_row(r,c);
+			}
+		}
+		
+		form
+	}
 }
 
 impl<'a, F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<'a, F> {
-    /// Computes the nullity (dimension of the kernel)
-    pub fn nullity(&self) -> usize {
-        self.rref.cols() - self.rank()
-    }
 
-    /// Computes the rank (dimension of the range)
-    pub fn rank(&self) -> usize {
-        self.rref.rows() - self.rref.zero_rows()
-    }
+	/// Computes basis for the kernel
+	pub fn compute_kernel(&self) -> Vec<Mat<F>> {
+		let rref = &self.b;
 
-    /// Computes basis for the kernel
-    pub fn compute_kernel(&self) -> Vec<Mat<F>> {
-        let n = self.rref.cols();
-        let bound_variables: HashSet<usize> = (0..self.rref.rows())
-            .filter_map(|r| self.rref.index_of_first_nonzero_entry(r))
-            .collect();
+		let n = rref.cols();
+		let bound_variables : HashSet<usize> = 
+			(0..rref.rows())
+				.filter_map(
+					|r| rref.index_of_first_nonzero_entry(r)
+				).collect();
 
-        let mut basis: Vec<Mat<F>> = vec![];
+		let mut basis : Vec<Mat<F>> = vec![];
 
-        for c in (0..self.rref.cols()).filter(|c| !bound_variables.contains(&c)) {
-            // if free variable
-            let mut vector: Mat<F> = Mat::e(c, n);
-            for r in 0..self.rref.rows() {
-                if let Some(c2) = self.rref.index_of_first_nonzero_entry(r) {
-                    if c2 < c {
-                        *vector.get_mut_unchecked(c2, 0) = F::ZERO - *self.rref.get_unchecked(r, c);
-                    }
-                }
-            }
-            basis.push(vector);
-        }
+		for c in (0..rref.cols()).filter(|c| !bound_variables.contains(&c)) {
+			// if free variable
+			let mut vector : Mat<F> = Mat::e(c, n);
+			for r in 0..rref.rows() {
+				if let Some(c2) = rref.index_of_first_nonzero_entry(r) {
+					if c2 < c {
+						*vector.get_mut_unchecked(c2, 0) = F::ZERO-*rref.get_unchecked(r,c);
+					}
+				}
+			}
+			basis.push(vector);
+		}
 
-        basis
-    }
+		basis
+	}
 
-    /// Computes basis for the range. UNTESTED.
-    pub fn compute_range(&self) -> Vec<Mat<F>> {
-        let bound_variables: HashSet<usize> = (0..self.rref.rows())
-            .filter_map(|r| self.rref.index_of_first_nonzero_entry(r))
-            .collect();
+	/// Computes basis for the range. UNTESTED.
+	pub fn compute_range(&self) -> Vec<Mat<F>> {
+		let rref = &self.b;
+		let original = self.original;
 
-        bound_variables
-            .into_iter()
-            .map(|c| self.original.get_col(c))
-            .collect()
-    }
+		let bound_variables : HashSet<usize> = 
+			(0..rref.rows())
+				.filter_map(
+					|r| rref.index_of_first_nonzero_entry(r)
+				).collect();
+		
+		bound_variables.into_iter().map(|c| original.get_col(c)).collect()
+	}
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::core::num::Field;
-    use crate::linalg::util::mat_iterator;
+	use crate::linalg::util::mat_iterator;
+	use crate::core::num::Field;
 
-    use super::Mat;
-    use crate::core::num::EpsilonEquality;
+	use super::Mat;
+	use crate::core::num::EpsilonEquality;
 
-    #[test]
-    fn test_lu() {
-        let n: usize = 3;
-        let m: usize = 4;
-        let values = vec![0.0, 1.0, 2.0];
+	#[test]
+	fn test_lu() {
 
-        // iterate through all matrices with only entries in `values`
-        for mat in mat_iterator(n, m, &values) {
-            let lu = mat.lu();
-            let prod = &lu.p.transpose() * &(&lu.l * &lu.u);
+		let n: usize = 3;
+		let m: usize = 4;
+		let values = vec![0.0, 1.0, 2.0];
 
-            assert!(
-                lu.l.is_lower_triangular(),
-                "L={} is not lower triangular, original A={}",
-                lu.l,
-                mat
-            );
-            assert!(
-                lu.u.is_upper_triangular(),
-                "U={} is not upper triangular, original A={}",
-                lu.u,
-                mat
-            );
-            assert!(
-                mat.epsilon_equals(&prod),
-                "failed on {} == {}, epsilon error is {}",
-                mat,
-                prod,
-                (&mat + &(&prod * (-1.0))).frobenius_norm()
-            );
-        }
-    }
+		// iterate through all matrices with only entries in `values`
+		for mat in mat_iterator(n, m, &values) {
+			let lu = mat.lu();
+			let prod: Mat<f64> = lu.p.transpose() * &lu.l * &lu.u;
 
-    #[test]
-    fn test_row_echelon() {
-        let n: usize = 3;
-        let m: usize = 4;
-        let values = vec![0.0, 1.0, 2.0];
+			assert!(lu.l.is_lower_triangular(),
+				"L={} is not lower triangular, original A={}",
+				lu.l, mat
+			);
+			assert!(lu.u.is_upper_triangular(),
+				"U={} is not upper triangular, original A={}",
+				lu.u, mat
+			);
+			assert!(mat.epsilon_equals(&prod),
+				"failed on {} == {}, epsilon error is {}",
+				mat, prod, (&mat + &(&prod*(-1.0))).frobenius_norm()
+			);
+		}
+	}
 
-        // iterate through all matrices with only entries in `values`
-        for mat in mat_iterator(n, m, &values) {
-            let row_ech = mat.row_echelon();
-            let lu = mat.lu();
+	#[test]
+	fn test_row_echelon() {
+		let n: usize = 3;
+		let m: usize = 4;
+		let values = vec![0.0, 1.0, 2.0];
 
-            assert!(
-                lu.u.epsilon_equals(&row_ech.b),
-                "failed on {} == {}, epsilon error is {}, does not match LU decomposition",
-                lu.u,
-                row_ech.b,
-                (&lu.u + &(&row_ech.b * (-1.0))).frobenius_norm()
-            );
+		// iterate through all matrices with only entries in `values`
+		for mat in mat_iterator(n, m, &values) {
+			let row_ech = mat.row_echelon();
+			let lu = mat.lu();
 
-            let prod = &row_ech.p * &mat;
-            assert!(
-                prod.epsilon_equals(&row_ech.b),
-                "failed on {} == {}, epsilon error is {}, does not satisfy `p*a=b`",
-                prod,
-                row_ech.b,
-                (&prod + &(&row_ech.b * (-1.0))).frobenius_norm()
-            );
-        }
-    }
+			assert!(lu.u.epsilon_equals(&row_ech.b),
+				"failed on {} == {}, epsilon error is {}, does not match LU decomposition",
+				lu.u, row_ech.b, (&lu.u + &(&row_ech.b * (-1.0))).frobenius_norm()
+			);
 
-    impl<F: Field + EpsilonEquality> Mat<F> {
-        fn is_col_cleared(&self, c: usize, pivot_r: usize) -> bool {
-            for r in 0..self.rows() {
-                if r != pivot_r && !self[(r, c)].epsilon_equals(&F::ZERO) {
-                    return false;
-                }
-            }
+			let prod = &row_ech.p * &mat;
+			assert!(prod.epsilon_equals(&row_ech.b),
+				"failed on {} == {}, epsilon error is {}, does not satisfy `p*a=b`",
+				prod, row_ech.b, (&prod + &(&row_ech.b * (-1.0))).frobenius_norm()
+			);
+		}
+	}
 
-            true
-        }
 
-        fn is_rref(&self) -> bool {
-            let mut prev_col: i32 = -1;
+	impl<F: Field + EpsilonEquality> Mat<F> {
+		fn is_col_cleared(&self, c: usize, pivot_r: usize) -> bool {
+			for r in 0..self.rows() {
+				if r != pivot_r && !self[(r,c)].epsilon_equals(&F::ZERO) {
+					return false
+				}
+			}
 
-            for r in 0..self.rows() {
-                if let Some(c) = self.index_of_first_nonzero_entry(r) {
-                    if !self.is_col_cleared(c, r) {
-                        return false;
-                    }
+			true
+		}
 
-                    if prev_col >= c as i32 {
-                        return false;
-                    }
-                    prev_col = c as i32;
-                } else {
-                    prev_col = self.cols() as i32;
-                }
-            }
+		fn is_rref(&self) -> bool {
+			let mut prev_col : i32 = -1;
 
-            true
-        }
-    }
+			for r in 0..self.rows() {
+				if let Some(c) = self.index_of_first_nonzero_entry(r) {
+					if !self.is_col_cleared(c, r) {
+						return false
+					}
 
-    #[test]
-    fn test_rref() {
-        let n: usize = 3;
-        let m: usize = 4;
-        let values = vec![0.0, 1.0, 2.0];
+					if prev_col >= c as i32 {
+						return false
+					}
+					prev_col = c as i32;
+				} else {
+					prev_col = self.cols() as i32;
+				}
+			}
 
-        // iterate through all matrices with only entries in `values`
-        for mat in mat_iterator(n, m, &values) {
-            let rref = mat.row_echelon().to_rref();
+			true
+		}
+	} 
 
-            let prod = &rref.p * &mat;
-            assert!(
-                prod.epsilon_equals(&rref.rref),
-                "failed on {} == {}, epsilon error is {}, does not satisfy `p*a=b`",
-                prod,
-                rref.rref,
-                (&prod + &(&rref.rref * (-1.0))).frobenius_norm()
-            );
+	#[test]
+	fn test_rref() {
+		let n: usize = 3;
+		let m: usize = 4;
+		let values = vec![0.0, 1.0, 2.0];
 
-            assert!(rref.rref.is_rref(), "is not rref");
-        }
-    }
+		// iterate through all matrices with only entries in `values`
+		for mat in mat_iterator(n, m, &values) {
+			let rref = mat.row_echelon().to_rref();
 
-    #[test]
-    fn test_compute_kernel() {
-        let n: usize = 3;
-        let m: usize = 4;
-        let values: Vec<f64> = vec![0.0, 1.0, 2.0];
+			let prod = &rref.p * &mat;
+			assert!(prod.epsilon_equals(&rref.b),
+				"failed on {} == {}, epsilon error is {}, does not satisfy `p*a=b`",
+				prod, rref.b, (&prod + &(&rref.b*(-1.0))).frobenius_norm()
+			);
 
-        // iterate through all matrices with only entries in `values`
-        for mat in mat_iterator(n, m, &values) {
-            let row_ech = mat.row_echelon();
-            let nullity = row_ech.nullity();
+			assert!(rref.b.is_rref(), "is not rref");
+		}
+	}
 
-            let rref = row_ech.to_rref();
-            let kernel_basis = rref.compute_kernel();
+	#[test]
+	fn test_compute_kernel() {
+		let n: usize = 3;
+		let m: usize = 4;
+		let values : Vec<f64> = vec![0.0, 1.0, 2.0];
 
-            // test that vectors are in the kernel
-            for v in kernel_basis.iter() {
-                let prod = &mat * v;
-                assert!(
-                    prod.epsilon_equals(&Mat::zero(prod.rows(), prod.cols())),
-                    "failed on {} not in kernel, norm is {}",
-                    prod,
-                    prod.frobenius_norm()
-                );
-            }
+		// iterate through all matrices with only entries in `values`
+		for mat in mat_iterator(n, m, &values) {
+			let row_ech = mat.row_echelon();
+			let nullity = row_ech.nullity();
 
-            // check kernel vectors are linearly independent
-            let kernel_mat = Mat::from_row_vectors(&kernel_basis);
-            let ker_row_ech = kernel_mat.row_echelon();
-            assert_eq!(ker_row_ech.rank(), nullity);
-        }
-    }
+			let rref = row_ech.to_rref();
+			let kernel_basis = rref.compute_kernel();
+			
+			// test that vectors are in the kernel
+			for v in kernel_basis.iter() {
+				let prod = &mat * v;
+				assert!(prod.epsilon_equals(&Mat::zero(prod.rows(), prod.cols())),
+					"failed on {} not in kernel, norm is {}",
+					prod, prod.frobenius_norm()
+				);
+			}
+
+			// check kernel vectors are linearly independent
+			let kernel_mat = Mat::from_row_vectors(&kernel_basis);
+			let ker_row_ech = kernel_mat.row_echelon();
+			assert_eq!(ker_row_ech.rank(), nullity);
+		}
+	}
 }
