@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 use std::iter::{Product, Sum};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-use super::frac::Frac;
 use super::int::Integer;
+use super::rat::Rational;
 
 // zero ------------------------------------------------------------------------
 
@@ -13,7 +13,7 @@ pub trait Zero: Sized + Add<Self, Output = Self> {
     fn is_zero(&self) -> bool;
 }
 
-macro_rules! int_zero_impl {
+macro_rules! impl_zero_for_primitives {
     ($($t:ty)*) => {
         $(
             impl Zero for $t {
@@ -28,7 +28,7 @@ macro_rules! int_zero_impl {
     }
 }
 
-int_zero_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
+impl_zero_for_primitives! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 
 impl Zero for Integer {
     const ZERO: Self = Integer(0);
@@ -39,8 +39,8 @@ impl Zero for Integer {
     }
 }
 
-impl Zero for Frac {
-    const ZERO: Self = Frac {
+impl Zero for Rational {
+    const ZERO: Self = Rational {
         numer: Integer::ZERO,
         denom: Integer::ONE,
     };
@@ -59,7 +59,7 @@ pub trait One: Sized + Mul {
     fn is_one(&self) -> bool;
 }
 
-macro_rules! one_impl {
+macro_rules! impl_one_for_primitives {
     ($($t:ty)*) => {
         $(
             impl One for $t {
@@ -74,34 +74,46 @@ macro_rules! one_impl {
     }
 }
 
-one_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
+impl_one_for_primitives! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
 
 impl One for Integer {
     const ONE: Self = Integer(1);
-    
+
     #[inline]
     fn is_one(&self) -> bool {
         self.0 == 1
     }
 }
 
-impl One for Frac {
-    const ONE: Self = Frac {
+impl One for Rational {
+    const ONE: Self = Rational {
         numer: Integer::ONE,
         denom: Integer::ONE,
     };
 
     #[inline]
     fn is_one(&self) -> bool {
-        // due to how Frac is implemented, being one always means that numer and denom are both one, so the following could be used and is sort of more semantic
+        // due to how `Rational` is implemented, being one always means that numer and denom are both one, so the following could be used and is sort of more semantic
         // self.numer.is_one() && self.denom.is_one()
 
         // however, doing only one comparison is quicker and more (unnecessarily) general
-        // i.e., this would work even if fractions were not simplest form sanitized
+        // i.e., this would work even if rationals were not simplest form sanitized
         self.numer == self.denom
     }
 }
 // field -----------------------------------------------------------------------
+
+macro_rules! auto_trait {
+    ($Trait:ident: $sup1:path $(, $sup:path)*) => {
+        pub trait $Trait: $sup1 $(+ $sup)* {}
+        impl<T: $sup1 $(+ $sup)*> $Trait for T {}
+    };
+}
+
+auto_trait! { OverloadAddition: Add<Self, Output = Self>, AddAssign<Self>, Sum }
+auto_trait! { OverloadSubtraction: Sized, Sub<Self, Output = Self>, SubAssign<Self>, Neg<Output = Self> }
+auto_trait! { OverloadMultiplication: Mul<Self, Output = Self>, MulAssign<Self>, Product }
+auto_trait! { OverloadDivision: Sized, Div<Self, Output = Self>, DivAssign<Self> }
 
 pub trait Field:
     Sized
@@ -109,18 +121,11 @@ pub trait Field:
     + std::fmt::Debug
     + std::fmt::Display
     + PartialEq
-    + Add<Self, Output = Self>
-    + AddAssign<Self>
-    + Sum
-    + Sub<Self, Output = Self>
-    + SubAssign<Self>
-    + Neg<Output = Self>
+    + OverloadAddition
+    + OverloadSubtraction
     + Zero
-    + Mul<Self, Output = Self>
-    + MulAssign<Self>
-    + Product
-    + Div<Self, Output = Self>
-    + DivAssign<Self>
+    + OverloadMultiplication
+    + OverloadDivision
     + One
 {
     fn powi32(&self, p: i32) -> Self;
@@ -145,7 +150,7 @@ macro_rules! field_impl {
     }
 }
 
-field_impl! { f32 f64 Frac }
+field_impl! { f32 f64 Rational }
 
 // Epsilon Equal ---------------------------------------------------------------
 
@@ -167,7 +172,7 @@ macro_rules! epsilon_equality_impl {
 
 epsilon_equality_impl! { f32 f64 }
 
-impl EpsilonEquality for Frac {
+impl EpsilonEquality for Rational {
     fn epsilon_equals(&self, other: &Self) -> bool {
         self == other
     }
@@ -201,16 +206,16 @@ macro_rules! stability_cmp_impl {
 
 stability_cmp_impl! { f32 f64 }
 
-/// stability cmp for Frac. First priority is making it so that 0 is leq than
+/// stability cmp for Rational. First priority is making it so that 0 is leq than
 /// everything in order for 0 to never be chosen as max value to divide by
 /// (that would do division by 0 and get NaN). Otherwise, the ordering chooses
 /// a value based on largest sum of abs of numer and denom, in order to have
 /// avoid very large denominators/numerators.
-impl StabilityCmp for Frac {
+impl StabilityCmp for Rational {
     fn stability_cmp(&self, other: &Self) -> Option<Ordering> {
-        if *self == Frac::ZERO {
+        if *self == Rational::ZERO {
             Some(Ordering::Less)
-        } else if *other == Frac::ZERO {
+        } else if *other == Rational::ZERO {
             Some(Ordering::Greater)
         } else {
             (other.numer.abs() + other.denom.abs())
@@ -219,13 +224,13 @@ impl StabilityCmp for Frac {
     }
 }
 
-impl PartialOrd for Frac {
+impl PartialOrd for Rational {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Frac {
+impl Ord for Rational {
     fn cmp(&self, other: &Self) -> Ordering {
         (self.numer * other.denom).cmp(&(other.numer * self.denom))
     }
