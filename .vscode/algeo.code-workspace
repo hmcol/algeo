@@ -1,0 +1,68 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		"cSpell.ignoreWords": [
+			"uhhh",
+			"hmmm",
+		],
+		"cSpell.words": [
+			"Abelian",
+			"accum",
+			"algeo",
+			"Algo",
+			"binop",
+			"btree",
+			"buchberger",
+			"clippy",
+			"cmp",
+			"coef",
+			"concat",
+			"consts",
+			"decomp",
+			"degs",
+			"Delim",
+			"DELIMS",
+			"derefs",
+			"divs",
+			"elts",
+			"eval",
+			"grevlex",
+			"grlex",
+			"Gröbner",
+			"infty",
+			"irred",
+			"itertools",
+			"linalg",
+			"mdeg",
+			"monic",
+			"Monoid",
+			"multidegree",
+			"multidegrees",
+			"mutators",
+			"newtype",
+			"nonleading",
+			"nonpositive",
+			"numer",
+			"operatorname",
+			"Paren",
+			"powi",
+			"recip",
+			"ref",
+			"revlex",
+			"rposition",
+			"rref",
+			"rustfmt",
+			"Semigroup",
+			"signum",
+			"structs",
+			"succ",
+			"unop",
+			"vecs",
+			"xops"
+		]
+	}
+}

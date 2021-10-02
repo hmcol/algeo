@@ -1,0 +1,5 @@
+[alias]
+d = "doc --no-deps" # can't build dependency docs with latex header
+
+[build]
+rustdocflags = ["--html-in-header", "./docs-header.html"] # latex in docs

@@ -1,2 +1,3 @@
 /target
-.vscode
+Cargo.lock
+notes.md

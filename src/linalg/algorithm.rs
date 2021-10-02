@@ -1,155 +1,152 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::IndexMut};
 
-use crate::core::num::{Field, StabilityCmp, EpsilonEquality};
 use super::mat::Mat;
 use super::util::get_max_index;
-
+use crate::core::num::{EpsilonEquality, Field, StabilityCmp};
 
 // utility matrix methods ------------------------------------------------------
 
-impl<F: Field+StabilityCmp+EpsilonEquality> Mat<F> {
-	/// looks at column `c`, and returns the row under (or equal) to `r` such
-	/// that the entry `self[(r,c)]` is maximal under the ordering given by
-	/// the `StabilityCmp` trait. In practice, this method is used to a good
-	/// pivot. For example, we want to avoid dividing by `f32`s of small
-	/// magnitude, like `0.00001`, since this will cause more floating point
-	/// error.
-	pub fn get_stable_column_index_under_row(&self, c: usize, r: usize)-> Option<(usize, F)>
-	{
-		let stable_index = get_max_index(
-			self.get_col_iter(c).skip(r),
-			|x,y| x.stability_cmp(y)
-		)+r;
+impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
+    /// looks at column `c`, and returns the row under (or equal) to `r` such
+    /// that the entry `self[(r,c)]` is maximal under the ordering given by
+    /// the `StabilityCmp` trait. In practice, this method is used to a good
+    /// pivot. For example, we want to avoid dividing by `f32`s of small
+    /// magnitude, like `0.00001`, since this will cause more floating point
+    /// error.
+    pub fn get_stable_column_index_under_row(&self, c: usize, r: usize) -> Option<(usize, F)> {
+        let stable_index =
+            get_max_index(self.get_col_iter(c).skip(r), |x, y| x.stability_cmp(y)) + r;
 
-		let scalar = self[(stable_index, c)];
-		if scalar.epsilon_equals(&F::ZERO) {
-			None
-		} else {
-			Some((stable_index, scalar))
-		}
-	}
+        let scalar = self[(stable_index, c)];
+        if scalar.epsilon_equals(&F::ZERO) {
+            None
+        } else {
+            Some((stable_index, scalar))
+        }
+    }
 }
 
-impl<F: Field+EpsilonEquality> Mat<F> {
-	/// Looks at the row `r` and returns the first column (left-to-right) such
-	/// that `self[(r,c)]` is nonzero (up to `epsilon_equals`)
-	fn index_of_first_nonzero_entry(&self, r: usize) -> Option<usize> {
-		self.get_row(r).entries().iter().position(|&x| !x.epsilon_equals(&F::ZERO))
-	}
+impl<F: Field + EpsilonEquality> Mat<F> {
+    /// Looks at the row `r` and returns the first column (left-to-right) such
+    /// that `self[(r,c)]` is nonzero (up to `epsilon_equals`)
+    fn index_of_first_nonzero_entry(&self, r: usize) -> Option<usize> {
+        self.get_row(r)
+            .entries()
+            .iter()
+            .position(|&x| !x.epsilon_equals(&F::ZERO))
+    }
 
-	/// Counts the number of zero rows (up to `epsilon_equals`).
-	pub fn zero_rows(&self) -> usize {
-		let mut zero_rows = 0;
+    /// Counts the number of zero rows (up to `epsilon_equals`).
+    pub fn zero_rows(&self) -> usize {
+        let mut zero_rows = 0;
 
-		for r in 0..self.rows() {
-			if let None = self.index_of_first_nonzero_entry(r) {
-				zero_rows += 1;
-			}
-		}
+        for r in 0..self.rows() {
+            if let None = self.index_of_first_nonzero_entry(r) {
+                zero_rows += 1;
+            }
+        }
 
-		zero_rows
-	}
+        zero_rows
+    }
 }
 
 impl<F: Field> Mat<F> {
-	// assumes src < target
-	fn permute_under_diagonal(&mut self, src: usize, target: usize) {
-		for c in 0..src {
-			let temp = self[(src, c)];
-			self[(src, c)] = self[(target, c)];
-			self[(target, c)] = temp;
-		}
-	}
+    // assumes src < target
+    fn permute_under_diagonal(&mut self, src: usize, target: usize) {
+        for c in 0..src {
+            self.swap((src, c), (target, c));
+            // let temp = self[(src, c)];
+            // self[(src, c)] = self[(target, c)];
+            // self[(target, c)] = temp;
+        }
+    }
 }
-
 
 // LU Decomposition ------------------------------------------------------------
 
 pub struct LUDecomposition<F: Field> {
-	pub p : Mat<F>,
-	pub l : Mat<F>,
-	pub u : Mat<F>
+    pub p: Mat<F>,
+    pub l: Mat<F>,
+    pub u: Mat<F>,
 }
 
 struct LUDecompositionInternal<F: Field> {
-	pub p: Vec<usize>,
-	pub l: Mat<F>,
-	pub u: Mat<F>
+    pub p: Vec<usize>,
+    pub l: Mat<F>,
+    pub u: Mat<F>,
 }
 
 impl<F: Field> LUDecompositionInternal<F> {
+    // assumes src < target
+    fn permute(&mut self, src: usize, target: usize) {
+        self.p.swap(src, target);
+        self.u.permute_rows(src, target);
+        self.l.permute_under_diagonal(src, target);
+    }
 
-	// assumes src < target
-	fn permute(&mut self, src: usize, target: usize) {
-		self.p.swap(src, target);
-		self.u.permute_rows(src, target);
-		self.l.permute_under_diagonal(src, target);
-	}
+    fn scale_row(&mut self, r: usize, scalar: F) {
+        self.l[(r, r)] = scalar;
+        self.u.scale_row(r, F::ONE / scalar);
+    }
 
-	fn scale_row(&mut self, r: usize, scalar: F) {
-		self.l[(r,r)] = scalar;
-		self.u.scale_row(r, F::ONE/scalar);
-	}
-
-	fn replace_col_under_row(&mut self, r: usize, c: usize) {
-		for r2 in (r+1)..self.u.rows() {
-			let scalar2 = self.u[(r2,c)];
-			self.u.replace_row(r, r2, F::ZERO-scalar2);
-			self.l[(r2, r)] = scalar2;
-		}
-	}
+    fn replace_col_under_row(&mut self, r: usize, c: usize) {
+        for r2 in (r + 1)..self.u.rows() {
+            let scalar2 = self.u[(r2, c)];
+            self.u.replace_row(r, r2, F::ZERO - scalar2);
+            self.l[(r2, r)] = scalar2;
+        }
+    }
 }
 
-impl<F: Field+StabilityCmp+EpsilonEquality> Mat<F> {
-	/// Returns LU Decomposition of given matrix. This method does not make
-	/// any assumptions on the dimension of the matrix (i.e. we allow
-	/// rectangular matrices), though it does require the field to implement 
-	/// StabilityCmp in order to do Gaussian elimination under the hood.
-	/// 
-	/// The LU decomposition satisfies more requirements than that typically
-	/// seen in Fortran implementations. The `u` matrix is actually in row
-	/// echelon form, which will be convenient for calculating rank as well as
-	/// rref (which will be used to compute a basis for the kernel)
-	/// 
-	/// `l` is product of inverses of elementary matrices applied to `mat`,
-	/// `p` is permutation, such that `(p * self).epsilon_equals(l * u)`
-	/// or equivalently `self.epsilon_equals(p.transpose() * l * u)`.
-	pub fn lu(&self) -> LUDecomposition<F> {
-		let m = self.cols();
-		let n = self.rows();
+impl<F: Field + StabilityCmp + EpsilonEquality> Mat<F> {
+    /// Returns LU Decomposition of given matrix. This method does not make
+    /// any assumptions on the dimension of the matrix (i.e. we allow
+    /// rectangular matrices), though it does require the field to implement
+    /// StabilityCmp in order to do Gaussian elimination under the hood.
+    ///
+    /// The LU decomposition satisfies more requirements than that typically
+    /// seen in Fortran implementations. The `u` matrix is actually in row
+    /// echelon form, which will be convenient for calculating rank as well as
+    /// rref (which will be used to compute a basis for the kernel)
+    ///
+    /// `l` is product of inverses of elementary matrices applied to `mat`,
+    /// `p` is permutation, such that `(p * self).epsilon_equals(l * u)`
+    /// or equivalently `self.epsilon_equals(p.transpose() * l * u)`.
+    pub fn lu(&self) -> LUDecomposition<F> {
+        let m = self.cols();
+        let n = self.rows();
 
-		// the "in progress" LU decomposition that will eventually become what
-		// we want.
-		let mut lu = LUDecompositionInternal {
-			p: (0..n).collect(),
-			l: Mat::identity(n),
-			u: self.clone()
-		};
+        // the "in progress" LU decomposition that will eventually become what
+        // we want.
+        let mut lu = LUDecompositionInternal {
+            p: (0..n).collect(),
+            l: Mat::identity(n),
+            u: self.clone(),
+        };
 
-		// row that hasn't been cleared yet
-		let mut r = 0;
+        // row that hasn't been cleared yet
+        let mut r = 0;
 
-		for c in 0..m {
-			if r >= n {
-				break;
-			}
+        for c in 0..m {
+            if r >= n {
+                break;
+            }
 
-			if let Some((stable_index, scalar)) = lu.u.get_stable_column_index_under_row(c, r) {
-				lu.permute(r, stable_index);
-				lu.scale_row(r, scalar);
-				lu.replace_col_under_row(r, c);
-				
-				r += 1;
-			}
-		}
-		LUDecomposition{
-			p: Mat::permutation_from_vec(lu.p),
-			l: lu.l,
-			u: lu.u
-		}
-	}
+            if let Some((stable_index, scalar)) = lu.u.get_stable_column_index_under_row(c, r) {
+                lu.permute(r, stable_index);
+                lu.scale_row(r, scalar);
+                lu.replace_col_under_row(r, c);
+
+                r += 1;
+            }
+        }
+        LUDecomposition {
+            p: Mat::permutation_from_vec(lu.p),
+            l: lu.l,
+            u: lu.u,
+        }
+    }
 }
-
 
 // Row Equivalent Forms --------------------------------------------------------
 
@@ -318,7 +315,6 @@ impl<'a, F: Field + StabilityCmp + EpsilonEquality> ReducedRowEchelonForm<'a, F>
 		bound_variables.into_iter().map(|c| original.get_col(c)).collect()
 	}
 }
-
 
 #[cfg(test)]
 mod tests {
