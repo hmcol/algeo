@@ -11,6 +11,9 @@ pub mod elts;
 pub mod mdeg;
 mod display;
 
+// pub mod newthing;
+mod univariate;
+
 
 /* #[doc(inline)]
 pub use ring::{u, v, w, x, y, z, Polynomial, Term}; */

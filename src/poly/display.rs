@@ -44,13 +44,13 @@ pub fn superscript(n: u8) -> String {
 
 impl Display for MultiDegree {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        if self.len() <= 5 {
+        if self.len() <= 6 {
             self.write_var(f, 0, "x")?;
             self.write_var(f, 1, "y")?;
             self.write_var(f, 2, "z")?;
-            self.write_var(f, 3, "u")?;
-            self.write_var(f, 4, "v")?;
-            self.write_var(f, 5, "w")?;
+            self.write_var(f, 3, "w")?;
+            self.write_var(f, 4, "u")?;
+            self.write_var(f, 5, "v")?;
         } else {
             write!(f, "X{:?}", self.0)?;
         }

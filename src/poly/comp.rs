@@ -216,7 +216,7 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
                 for (i, j) in pairs_iter(generators.len()) {
                     if Self::leading_term(&generators[j])
                         .unwrap()
-                        .divides(&Self::leading_term(&generators[i]).unwrap())
+                        .divides(Self::leading_term(&generators[i]).unwrap())
                     {
                         // `LT(g_i)` is superfluous
                         generators.remove(i);
@@ -242,7 +242,7 @@ impl<F: Field, O: MonomialOrder> Computer<F, O> {
                             let g = generators.remove(i);
 
                             // `g_rem` is remainder of `g mod (G \ {g})`
-                            let (g_rem, _) = Self::divide(&g, &generators);
+                            let (g_rem, _) = Self::divide(&g, generators);
 
                             // replaces `g` with its remainder
                             generators.push(g_rem);
@@ -275,10 +275,7 @@ mod tests {
     use std::ops::Add;
 
     use super::*;
-    use crate::{
-        core::num::Rational,
-        poly::{elts::Polynomial, elts::Term},
-    };
+    use crate::{core::num::Rational, poly::{elts::Polynomial, elts::Term, ord::GrLex}};
 
     use super::super::ord::Lex;
 
@@ -396,7 +393,7 @@ mod tests {
     fn buchberger() {
         let q = |a, b| Polynomial::from(Rational::new_i64(a, b));
         let c = |coef| q(coef, 1);
-        fn_vars! { Rational: x y }
+        fn_vars! { Rational: x y z w }
         type CompQ = Computer<Rational, Lex>;
 
         fn print_buchberger(g: &[Polynomial<Rational>]) -> Vec<Polynomial<Rational>> {
@@ -414,12 +411,36 @@ mod tests {
             g
         }
 
+        print_buchberger(&[
+            y(1)*w(1) - z(2),
+            x(1)*w(1) - y(1)*z(1),
+            x(1)*z(1) - y(2),
+        ]);
+
         print_buchberger(&[x(3) * y(1) - x(1) * y(2) + c(1), x(2) * y(2) - y(3) - c(1)]);
 
         print_buchberger(&[
             x(2) + x(1) * y(5) + y(4),
             x(1) * y(6) - x(1) * y(3) + y(5) - y(2),
             x(1) * y(5) - x(1) * y(2),
+        ]);
+
+        print_buchberger(&[
+            x(2) * y(1) + x(1) * y(2) - x(4) - y(4),
+            c(2) * x(1) * y(1) + y(2) - c(4) * x(3),
+            c(2) * x(1) * y(1) + x(2) - c(4) * y(3),
+        ]);
+
+        print_buchberger(&[
+            x(2) * y(1) + x(1) * y(2) - x(4) - y(4),
+            c(2) * x(1) * y(1) + y(2) - c(4) * x(3),
+            c(2) * x(1) * y(1) + x(2) - c(4) * y(3),
+        ]);
+
+        print_buchberger(&[
+            x(1) * y(1) + x(3) + y(3),
+            c(3) * x(2) + y(1),
+            c(3) * y(2) + x(1),
         ]);
 
         // need to implement equality for polynomials, bases, etc. before proper tests can be written
