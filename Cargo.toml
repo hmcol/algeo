@@ -14,5 +14,3 @@ repository = "https://github.com/hmcol/algeo"
 rustdocflags = ["--html-in-header", "./docs-header.html"] # latex in docs
 
 [dependencies]
-xops = "0.1.1"
-itertools = "0.10.1"
