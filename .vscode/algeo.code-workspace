@@ -10,6 +10,7 @@
 			"hmmm",
 		],
 		"cSpell.words": [
+			"abelian",
 			"Abelian",
 			"accum",
 			"algeo",
@@ -20,6 +21,7 @@
 			"clippy",
 			"cmp",
 			"coef",
+			"componentwise",
 			"concat",
 			"consts",
 			"decomp",
@@ -36,6 +38,7 @@
 			"infty",
 			"irred",
 			"itertools",
+			"joesef",
 			"linalg",
 			"mdeg",
 			"monic",
