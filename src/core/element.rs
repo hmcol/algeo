@@ -20,6 +20,11 @@ pub fn Elt<D: ElementDataType>(data: D) -> Element {
     data.into_element()
 }
 
+#[allow(non_snake_case)]
+pub fn Pair(a: Element, b: Element) -> ElementPair {
+    ElementPair::new(a, b)
+}
+
 /// most basic mathematical integer type
 ///
 /// any rust integer which is meant to be interpreted mathematically must go

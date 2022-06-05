@@ -1,113 +1,42 @@
 #![allow(unused)]
 
-
 use crate::core::{
-    element::{Element, Result},
+    element::{DataTypeError, Element, ElementDataType, Elt, Rat, Result},
     int::Integer,
 };
 
-use super::ring::{RingOps, Ring};
+use super::{ring::Ring, Q};
 
-#[derive(Debug)]
-pub enum Field {
-    Q(Q),
-    ZModPZ(ZModPZ),
-}
-
-pub trait FieldOps: RingOps {
+pub trait Field: Ring {
     fn inv(&self, a: Element) -> Result<Element>;
     fn div(&self, a: Element, b: Element) -> Result<Element>;
 }
 
-#[derive(Debug)]
-pub struct Q;
+pub type FieldBox = Box<dyn Field>;
 
-#[derive(Debug)]
-
-pub struct ZModPZ(Integer);
-
-
-pub trait FieldType: FieldOps {}
-
-macro_rules! impl_ring_type {
-    ($($t:ty)+) => {
-        $(
-            impl FieldType for $t {}
-        )+
-    };
-}
-
-impl_ring_type! { Q ZModPZ }
-
-impl RingOps for Q {
-    fn zero(&self) -> Element {
-        todo!()
-    }
-
-    fn add(&self, a: Element, b: Element) -> Result<Element> {
-        todo!()
-    }
-
-    fn sub(&self, a: Element, b: Element) -> Result<Element> {
-        todo!()
-    }
-
-    fn neg(&self, a: Element) -> Result<Element> {
-        todo!()
-    }
-
-    fn one(&self) -> Element {
-        todo!()
-    }
-
-    fn mul(&self, a: Element, b: Element) -> Result<Element> {
-        todo!()
-    }
-}
-
-impl FieldOps for Q {
+impl Field for Q {
     fn inv(&self, a: Element) -> Result<Element> {
-        todo!()
+        let a = Rat::read_data(a)?.0;
+
+        match a.recip() {
+            Some(a_inv) => Ok(Elt(Rat(a_inv))),
+            // idk if this is the right sort of error
+            // should be like "divide by zero" error
+            None => Err(DataTypeError::default()),
+        }
     }
 
     fn div(&self, a: Element, b: Element) -> Result<Element> {
-        todo!()
+        let a = Rat::read_data(a)?.0;
+        let b = Rat::read_data(b)?.0;
+
+        match b.recip() {
+            Some(b_inv) => Ok(Elt(Rat(a * b_inv))),
+            // idk if this is the right sort of error
+            // should be like "divide by zero" error
+            None => Err(DataTypeError::default()),
+        }
     }
 }
 
-
-impl RingOps for ZModPZ {
-    fn zero(&self) -> Element {
-        todo!()
-    }
-
-    fn add(&self, a: Element, b: Element) -> Result<Element> {
-        todo!()
-    }
-
-    fn sub(&self, a: Element, b: Element) -> Result<Element> {
-        todo!()
-    }
-
-    fn neg(&self, a: Element) -> Result<Element> {
-        todo!()
-    }
-
-    fn one(&self) -> Element {
-        todo!()
-    }
-
-    fn mul(&self, a: Element, b: Element) -> Result<Element> {
-        todo!()
-    }
-}
-
-impl FieldOps for ZModPZ {
-    fn inv(&self, a: Element) -> Result<Element> {
-        todo!()
-    }
-
-    fn div(&self, a: Element, b: Element) -> Result<Element> {
-        todo!()
-    }
-}
+pub struct FieldProd(Vec<FieldBox>);
